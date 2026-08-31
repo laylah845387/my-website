@@ -32,7 +32,7 @@ export default function HomePage() {
           GIVEAWAY HUB
         </h1>
         <p className="text-[14px] font-medium tracking-[0.12em] text-text-secondary uppercase max-w-md mb-6">
-          Complete tasks. Earn points. Redeem exclusive digital rewards for free.
+          Complete tasks. Earn points. Redeem exclusive rewards for free.
         </p>
 
         {/* Current Points Display */}
@@ -70,7 +70,7 @@ export default function HomePage() {
               Complete Tasks
             </h3>
             <p className="text-[12px] text-text-secondary leading-relaxed">
-              Browse offers and complete quick tasks to earn points through our
+              Complete quick free tasks such as watching advertisements, answering surveys, and more to earn points through our
               partners.
             </p>
           </div>
@@ -85,7 +85,7 @@ export default function HomePage() {
             </h3>
             <p className="text-[12px] text-text-secondary leading-relaxed">
               Each completed task rewards you with points. Accumulate points to
-              unlock higher-value rewards.
+              unlock rewards.
             </p>
           </div>
 
@@ -98,7 +98,7 @@ export default function HomePage() {
               Redeem Rewards
             </h3>
             <p className="text-[12px] text-text-secondary leading-relaxed">
-              Redeem your points for robux prizes, exclusive rewards, giveaway
+              Redeem your points for robux prizes, exclusive rewards, extra giveaway
               entries, and more.
             </p>
           </div>

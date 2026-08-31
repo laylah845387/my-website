@@ -24,7 +24,7 @@ export default function Navbar() {
         <Link href="/" className="flex items-center gap-3 shrink-0">
           <Image
             src="/logo.jpg"
-            alt="CapeVerse"
+            alt="GIVEAWAY HUB"
             width={36}
             height={36}
             className="rounded-md"
