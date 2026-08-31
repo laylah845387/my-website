@@ -84,7 +84,7 @@ export default function HomePage() {
               Earn Points
             </h3>
             <p className="text-[12px] text-text-secondary leading-relaxed">
-              Each completed task rewards you with points. Accumulate points to
+              Each completed task rewards you with points. Accumulate more points to
               unlock rewards.
             </p>
           </div>
