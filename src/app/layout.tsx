@@ -19,10 +19,10 @@ const oswald = Oswald({
 });
 
 export const metadata: Metadata = {
-  title: "CapeVerse — Earn Rewards",
+  title: "Giveaway Hub — Earn Rewards",
   description:
-    "Complete tasks to earn points and redeem them for exclusive digital rewards on CapeVerse.",
-  keywords: ["capeverse", "rewards", "offerwall", "points", "digital cosmetics"],
+    "Complete tasks to earn points and redeem them for exclusive digital rewards on Giveaway Hub.",
+  keywords: ["giveaway hub", "rewards", "offerwall", "points", "digital cosmetics"],
 };
 
 export default function RootLayout({

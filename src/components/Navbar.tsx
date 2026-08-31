@@ -30,7 +30,7 @@ export default function Navbar() {
             className="rounded-md"
           />
           <span className="text-lg font-bold tracking-wider text-text-primary font-heading">
-            CAPEVERSE
+            GIVEAWAY HUB
           </span>
         </Link>
 
