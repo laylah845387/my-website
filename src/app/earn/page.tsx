@@ -1,18 +1,48 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/lib/store";
-import { offers } from "@/data/offers";
 import { Offer } from "@/types";
 import PageContainer from "@/components/PageContainer";
 import BalanceCard from "@/components/BalanceCard";
 import OfferGrid from "@/components/OfferGrid";
+import LoadingState from "@/components/LoadingState";
 
 export default function EarnPage() {
   const router = useRouter();
   const { state, session, login, completeOffer, showToast } = useApp();
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [offersLoading, setOffersLoading] = useState(true);
 
-  const handleSelectOffer = (offer: Offer) => {
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/offers")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) {
+          setOffers(data.offers ?? []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          showToast("Couldn't load offers right now. Try refreshing.", "error");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setOffersLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSelectOffer = async (offer: Offer) => {
     if (!session) {
       login();
       return;
@@ -23,11 +53,33 @@ export default function EarnPage() {
       return;
     }
 
-    // In the demo, simulate immediate completion
-    // In production, this would redirect to Bitcotasks
     showToast(`Starting task: ${offer.title || offer.duration}...`, "info");
 
-    // Simulate task completion after a brief delay
+    try {
+      const res = await fetch("/api/offers/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ offerId: offer.id }),
+      });
+
+      if (res.status === 401) {
+        login();
+        return;
+      }
+
+      const data = await res.json();
+
+      if (data.redirectUrl) {
+        // Real Bitcotasks task — send the user to it in a new tab.
+        window.open(data.redirectUrl, "_blank", "noopener,noreferrer");
+        return;
+      }
+    } catch {
+      // Fall through to the local demo simulation below if the request fails.
+    }
+
+    // No live Bitcotasks connection yet — simulate completion locally so
+    // the rest of the app (points, balance, redeem flow) is testable.
     setTimeout(() => {
       completeOffer(offer.id, offer.points);
     }, 1500);
@@ -67,11 +119,15 @@ export default function EarnPage() {
       </div>
 
       {/* Offer Grid */}
-      <OfferGrid
-        offers={offers}
-        completedOffers={state.completedOffers}
-        onSelectOffer={handleSelectOffer}
-      />
+      {offersLoading ? (
+        <LoadingState />
+      ) : (
+        <OfferGrid
+          offers={offers}
+          completedOffers={state.completedOffers}
+          onSelectOffer={handleSelectOffer}
+        />
+      )}
     </PageContainer>
   );
 }
