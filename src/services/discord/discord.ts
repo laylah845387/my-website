@@ -109,7 +109,7 @@ export async function fetchDiscordUser(accessToken: string): Promise<DiscordUser
     ? `https://cdn.discordapp.com/avatars/${data.id}/${data.avatar}.${
         String(data.avatar).startsWith("a_") ? "gif" : "png"
       }?size=128`
-    : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(data.id) >> 22n) % 6}.png`;
+    : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(data.id) >> BigInt(22)) % 6}.png`;
 
   return {
     id: data.id,
