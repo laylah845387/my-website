@@ -216,6 +216,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await fetch("/api/auth/logout", { method: "POST" });
     } finally {
       dispatch({ type: "SET_SESSION", payload: null });
+      window.location.href = "/";
     }
   }, []);
 

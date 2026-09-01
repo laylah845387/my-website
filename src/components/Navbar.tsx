@@ -81,9 +81,11 @@ export default function Navbar() {
 
           {/* Discord community link */}
           <a
-            href="#"
+            href="https://discord.gg/SKFuVVqpSV"
+            target="_blank"
+            rel="noopener noreferrer"
             className="text-text-primary hover:text-accent-green transition-colors"
-            aria-label="Discord"
+            aria-label="Join our Discord"
           >
             <DiscordIcon size={22} />
           </a>

@@ -10,10 +10,14 @@ import RewardCard from "@/components/RewardCard";
 import { X, Sparkles } from "lucide-react";
 
 export default function RedeemPage() {
-  const { state, redeemReward } = useApp();
+  const { state, session, login, redeemReward } = useApp();
   const [confirming, setConfirming] = useState<Reward | null>(null);
 
   const handleSelectReward = (reward: Reward) => {
+    if (!session) {
+      login();
+      return;
+    }
     setConfirming(reward);
   };
 

@@ -10,9 +10,14 @@ import OfferGrid from "@/components/OfferGrid";
 
 export default function EarnPage() {
   const router = useRouter();
-  const { state, completeOffer, showToast } = useApp();
+  const { state, session, login, completeOffer, showToast } = useApp();
 
   const handleSelectOffer = (offer: Offer) => {
+    if (!session) {
+      login();
+      return;
+    }
+
     if (state.completedOffers.includes(offer.id)) {
       showToast("You have already completed this offer.", "info");
       return;

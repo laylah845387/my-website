@@ -13,7 +13,7 @@ interface RewardModalProps {
 }
 
 export default function RewardModal({ isOpen, onClose }: RewardModalProps) {
-  const { state, redeemReward } = useApp();
+  const { state, session, login, redeemReward } = useApp();
   const [confirming, setConfirming] = useState<Reward | null>(null);
 
   // Close on ESC
@@ -42,6 +42,10 @@ export default function RewardModal({ isOpen, onClose }: RewardModalProps) {
   }, [isOpen, handleKeyDown]);
 
   const handleSelectReward = (reward: Reward) => {
+    if (!session) {
+      login();
+      return;
+    }
     setConfirming(reward);
   };
 
