@@ -59,33 +59,16 @@ export default function Navbar() {
             );
           })}
 
-          {/* Discord community link */}
-          <a
-            href="#"
-            className="text-text-primary hover:text-accent-green transition-colors ml-2"
-            aria-label="Discord"
-          >
-            <DiscordIcon size={22} />
-          </a>
-
           {/* Account area */}
           {sessionLoading ? (
-            <div className="w-8 h-8 rounded-full bg-bg-card border border-border animate-pulse" />
+            <div className="w-16 h-4 rounded bg-bg-card border border-border animate-pulse ml-2" />
           ) : session ? (
             <button
               onClick={logout}
-              className="group relative shrink-0"
               title={`Log out (${session.username})`}
+              className="text-[13px] font-semibold tracking-[0.12em] text-accent-green hover:text-accent-green-dark transition-colors duration-200 cursor-pointer"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={session.avatarUrl}
-                alt={session.username}
-                width={32}
-                height={32}
-                className="w-8 h-8 rounded-full border border-border group-hover:border-accent-green transition-colors object-cover"
-              />
-              <span className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-accent-green border-2 border-bg" />
+              LOGOUT
             </button>
           ) : (
             <button
@@ -95,6 +78,15 @@ export default function Navbar() {
               Login
             </button>
           )}
+
+          {/* Discord community link */}
+          <a
+            href="#"
+            className="text-text-primary hover:text-accent-green transition-colors"
+            aria-label="Discord"
+          >
+            <DiscordIcon size={22} />
+          </a>
         </nav>
 
         {/* Mobile Toggle */}
@@ -135,17 +127,9 @@ export default function Navbar() {
                   setMobileOpen(false);
                   logout();
                 }}
-                className="flex items-center gap-2 text-[13px] font-semibold tracking-[0.12em] text-accent-green text-left pl-3 cursor-pointer"
+                className="text-[13px] font-semibold tracking-[0.12em] text-accent-green text-left pl-3 cursor-pointer"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={session.avatarUrl}
-                  alt={session.username}
-                  width={20}
-                  height={20}
-                  className="w-5 h-5 rounded-full object-cover"
-                />
-                Log out
+                LOGOUT
               </button>
             ) : !sessionLoading ? (
               <button
