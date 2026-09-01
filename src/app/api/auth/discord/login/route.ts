@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthorizationUrl, generateState } from "@/services/discord/discord";
+import { getPublicOrigin } from "@/lib/request-origin";
 
 export async function GET(request: NextRequest) {
   let authUrl: string;
@@ -10,7 +11,7 @@ export async function GET(request: NextRequest) {
   } catch {
     // Discord isn't configured yet (missing env vars) — send the user
     // back home with an error flag instead of crashing.
-    return NextResponse.redirect(new URL("/?error=discord_not_configured", request.nextUrl.origin));
+    return NextResponse.redirect(new URL("/?error=discord_not_configured", getPublicOrigin(request)));
   }
 
   const response = NextResponse.redirect(authUrl);

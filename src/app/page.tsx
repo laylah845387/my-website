@@ -3,7 +3,6 @@
 import Link from "next/link";
 import Image from "next/image";
 import PageContainer from "@/components/PageContainer";
-import DiscordIcon from "@/components/DiscordIcon";
 import { useApp } from "@/lib/store";
 import { ArrowRight, Zap, Gift, Star } from "lucide-react";
 
@@ -59,10 +58,10 @@ export default function HomePage() {
         ) : (
           <button
             onClick={login}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[#5865F2] text-white font-bold text-[13px] tracking-[0.1em] uppercase hover:bg-[#4752C4] transition-colors cursor-pointer"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-white text-bg font-bold text-[13px] tracking-[0.1em] uppercase hover:bg-gray-100 transition-colors cursor-pointer"
           >
-            <DiscordIcon size={16} />
-            Link Discord to Start Earning
+            Start Earning
+            <ArrowRight size={16} />
           </button>
         )}
       </div>

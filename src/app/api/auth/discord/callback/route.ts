@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exchangeCodeForToken, fetchDiscordUser } from "@/services/discord/discord";
 import { createSessionCookie } from "@/lib/session";
+import { getPublicOrigin } from "@/lib/request-origin";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
-  const origin = request.nextUrl.origin;
+  const origin = getPublicOrigin(request);
 
   const code = searchParams.get("code");
   const state = searchParams.get("state");
