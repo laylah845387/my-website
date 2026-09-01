@@ -28,15 +28,15 @@ interface AppState {
   sessionLoading: boolean;
 }
 
-const DEFAULT_USER: User = {
-  id: "demo-user",
-  points: 150,
-  username: "DemoUser",
+const GUEST_USER: User = {
+  id: "guest",
+  points: 0,
+  username: "Guest",
   createdAt: new Date().toISOString(),
 };
 
 const INITIAL_STATE: AppState = {
-  user: DEFAULT_USER,
+  user: GUEST_USER,
   orders: [],
   completedOffers: [],
   toasts: [],
@@ -46,101 +46,65 @@ const INITIAL_STATE: AppState = {
 
 // ─── Actions ────────────────────────────────────────────────────
 type Action =
-  | { type: "SET_STATE"; payload: Partial<AppState> }
-  | { type: "ADD_POINTS"; payload: number }
-  | { type: "DEDUCT_POINTS"; payload: number }
-  | { type: "ADD_ORDER"; payload: Order }
-  | { type: "COMPLETE_OFFER"; payload: { offerId: string; points: number } }
   | { type: "ADD_TOAST"; payload: Toast }
   | { type: "REMOVE_TOAST"; payload: string }
-  | { type: "SET_SESSION"; payload: DiscordSession | null };
+  | {
+      type: "INIT";
+      payload: {
+        session: DiscordSession | null;
+        points: number;
+        completedOffers: string[];
+        orders: Order[];
+      };
+    }
+  | { type: "SET_POINTS"; payload: number }
+  | { type: "COMPLETE_OFFER"; payload: { offerId: string; points: number } }
+  | { type: "ADD_ORDER"; payload: { order: Order; points: number } };
 
 function appReducer(state: AppState, action: Action): AppState {
   switch (action.type) {
-    case "SET_STATE":
-      return { ...state, ...action.payload };
-    case "ADD_POINTS":
+    case "INIT": {
+      const { session, points, completedOffers, orders } = action.payload;
       return {
         ...state,
-        user: { ...state.user, points: state.user.points + action.payload },
+        discordSession: session,
+        sessionLoading: false,
+        completedOffers,
+        orders,
+        user: session
+          ? {
+              id: session.id,
+              discordId: session.id,
+              username: session.username,
+              points,
+              createdAt: state.user.createdAt,
+            }
+          : GUEST_USER,
       };
-    case "DEDUCT_POINTS":
+    }
+    case "SET_POINTS":
+      return { ...state, user: { ...state.user, points: action.payload } };
+    case "COMPLETE_OFFER":
       return {
         ...state,
-        user: { ...state.user, points: state.user.points - action.payload },
+        user: { ...state.user, points: action.payload.points },
+        completedOffers: [...state.completedOffers, action.payload.offerId],
       };
     case "ADD_ORDER":
       return {
         ...state,
-        orders: [action.payload, ...state.orders],
-      };
-    case "COMPLETE_OFFER":
-      return {
-        ...state,
-        user: {
-          ...state.user,
-          points: state.user.points + action.payload.points,
-        },
-        completedOffers: [
-          ...state.completedOffers,
-          action.payload.offerId,
-        ],
+        user: { ...state.user, points: action.payload.points },
+        orders: [action.payload.order, ...state.orders],
       };
     case "ADD_TOAST":
-      return {
-        ...state,
-        toasts: [...state.toasts, action.payload],
-      };
+      return { ...state, toasts: [...state.toasts, action.payload] };
     case "REMOVE_TOAST":
       return {
         ...state,
         toasts: state.toasts.filter((t) => t.id !== action.payload),
       };
-    case "SET_SESSION":
-      return {
-        ...state,
-        discordSession: action.payload,
-        sessionLoading: false,
-        user: action.payload
-          ? {
-              ...state.user,
-              discordId: action.payload.id,
-              username: action.payload.username,
-            }
-          : state.user,
-      };
     default:
       return state;
-  }
-}
-
-// ─── Storage ────────────────────────────────────────────────────
-const STORAGE_KEY = "capeverse-state";
-
-function loadState(): Partial<AppState> | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return { ...parsed, toasts: [] };
-    }
-  } catch {
-    // ignore parse errors
-  }
-  return null;
-}
-
-function saveState(state: AppState) {
-  if (typeof window === "undefined") return;
-  try {
-    const { toasts, discordSession, sessionLoading, ...persistable } = state;
-    void toasts;
-    void discordSession;
-    void sessionLoading;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(persistable));
-  } catch {
-    // ignore storage errors
   }
 }
 
@@ -151,14 +115,13 @@ interface AppContextValue {
   sessionLoading: boolean;
   login: () => void;
   logout: () => Promise<void>;
-  addPoints: (points: number) => void;
   redeemReward: (
     rewardId: string,
     rewardName: string,
     rewardImage: string,
     pointsCost: number
-  ) => boolean;
-  completeOffer: (offerId: string, points: number) => void;
+  ) => Promise<boolean>;
+  completeOffer: (offerId: string, points: number) => Promise<void>;
   showToast: (message: string, type: ToastType) => void;
   removeToast: (id: string) => void;
 }
@@ -167,41 +130,51 @@ const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, INITIAL_STATE);
-  const [hydrated, setHydrated] = React.useState(false);
 
-  // Hydrate points/orders from localStorage on mount
-  useEffect(() => {
-    const saved = loadState();
-    if (saved) {
-      dispatch({ type: "SET_STATE", payload: saved });
-    }
-    setHydrated(true);
+  const showToast = useCallback((message: string, type: ToastType) => {
+    const id = generateId();
+    dispatch({ type: "ADD_TOAST", payload: { id, message, type } });
+    setTimeout(() => {
+      dispatch({ type: "REMOVE_TOAST", payload: id });
+    }, 4000);
   }, []);
 
-  // Persist points/orders to localStorage on state change
-  useEffect(() => {
-    if (hydrated) {
-      saveState(state);
-    }
-  }, [state, hydrated]);
-
-  // Check whether the visitor has a linked Discord session
+  // On load, find out who's signed in (if anyone) and pull their real,
+  // server-side points/offers/orders — this replaces localStorage as
+  // the source of truth, so progress belongs to the Discord account,
+  // not the browser.
   useEffect(() => {
     let cancelled = false;
 
-    fetch("/api/auth/session")
-      .then((res) => res.json())
-      .then((data) => {
-        if (!cancelled) {
-          dispatch({ type: "SET_SESSION", payload: data.user ?? null });
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          dispatch({ type: "SET_SESSION", payload: null });
-        }
-      });
+    async function init() {
+      try {
+        const [sessionRes, dataRes] = await Promise.all([
+          fetch("/api/auth/session").then((r) => r.json()),
+          fetch("/api/user/me").then((r) => r.json()),
+        ]);
 
+        if (cancelled) return;
+
+        dispatch({
+          type: "INIT",
+          payload: {
+            session: sessionRes.user ?? null,
+            points: dataRes.points ?? 0,
+            completedOffers: dataRes.completedOffers ?? [],
+            orders: dataRes.orders ?? [],
+          },
+        });
+      } catch {
+        if (!cancelled) {
+          dispatch({
+            type: "INIT",
+            payload: { session: null, points: 0, completedOffers: [], orders: [] },
+          });
+        }
+      }
+    }
+
+    init();
     return () => {
       cancelled = true;
     };
@@ -215,80 +188,83 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } finally {
-      dispatch({ type: "SET_SESSION", payload: null });
       window.location.href = "/";
     }
   }, []);
 
-  const showToast = useCallback((message: string, type: ToastType) => {
-    const id = generateId();
-    dispatch({ type: "ADD_TOAST", payload: { id, message, type } });
-    setTimeout(() => {
-      dispatch({ type: "REMOVE_TOAST", payload: id });
-    }, 4000);
-  }, []);
+  const completeOffer = useCallback(
+    async (offerId: string, points: number) => {
+      try {
+        const res = await fetch("/api/offers/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ offerId, points }),
+        });
 
-  const removeToast = useCallback((id: string) => {
-    dispatch({ type: "REMOVE_TOAST", payload: id });
-  }, []);
+        if (res.status === 401) {
+          showToast("Please sign in with Discord first.", "error");
+          return;
+        }
 
-  const addPoints = useCallback(
-    (points: number) => {
-      dispatch({ type: "ADD_POINTS", payload: points });
-      showToast(`+${points} points earned!`, "success");
+        const data = await res.json();
+
+        if (data.alreadyCompleted) {
+          showToast("You have already completed this offer.", "info");
+          return;
+        }
+
+        dispatch({ type: "COMPLETE_OFFER", payload: { offerId, points: data.points } });
+        showToast(`+${points} points earned!`, "success");
+      } catch {
+        showToast("Something went wrong saving your progress. Try again.", "error");
+      }
     },
     [showToast]
   );
 
   const redeemReward = useCallback(
-    (
+    async (
       rewardId: string,
       rewardName: string,
       rewardImage: string,
       pointsCost: number
-    ): boolean => {
-      if (state.user.points < pointsCost) {
-        showToast(
-          `Insufficient points. You need ${pointsCost} points but only have ${state.user.points}.`,
-          "error"
-        );
+    ): Promise<boolean> => {
+      try {
+        const res = await fetch("/api/rewards/redeem", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rewardId, rewardName, rewardImage, points: pointsCost }),
+        });
+
+        if (res.status === 401) {
+          showToast("Please sign in with Discord first.", "error");
+          return false;
+        }
+
+        const data = await res.json();
+
+        if (!data.success) {
+          showToast(
+            `Insufficient points. You need ${pointsCost} points but only have ${data.points}.`,
+            "error"
+          );
+          return false;
+        }
+
+        dispatch({ type: "ADD_ORDER", payload: { order: data.order, points: data.points } });
+        showToast(`Successfully redeemed ${rewardName}!`, "success");
+        return true;
+      } catch {
+        showToast("Something went wrong redeeming that. Try again.", "error");
         return false;
       }
-
-      dispatch({ type: "DEDUCT_POINTS", payload: pointsCost });
-
-      const order: Order = {
-        id: generateId(),
-        rewardId,
-        rewardName,
-        rewardImage,
-        points: pointsCost,
-        status: "COMPLETED",
-        createdAt: new Date().toISOString(),
-      };
-
-      dispatch({ type: "ADD_ORDER", payload: order });
-      showToast(`Successfully redeemed ${rewardName}!`, "success");
-      return true;
     },
-    [state.user.points, showToast]
+    [showToast]
   );
 
-  const completeOffer = useCallback(
-    (offerId: string, points: number) => {
-      if (state.completedOffers.includes(offerId)) {
-        showToast("You have already completed this offer.", "info");
-        return;
-      }
-      dispatch({ type: "COMPLETE_OFFER", payload: { offerId, points } });
-      showToast(`Task completed! +${points} points earned.`, "success");
-    },
-    [state.completedOffers, showToast]
-  );
-
-  if (!hydrated) {
-    return null;
-  }
+  const removeToast = useCallback((id: string) => {
+    dispatch({ type: "REMOVE_TOAST", payload: id });
+  }, []);
 
   return (
     <AppContext.Provider
@@ -298,9 +274,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         sessionLoading: state.sessionLoading,
         login,
         logout,
-        addPoints,
-        redeemReward,
         completeOffer,
+        redeemReward,
         showToast,
         removeToast,
       }}

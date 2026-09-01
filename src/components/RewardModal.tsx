@@ -49,9 +49,9 @@ export default function RewardModal({ isOpen, onClose }: RewardModalProps) {
     setConfirming(reward);
   };
 
-  const handleConfirmRedeem = () => {
+  const handleConfirmRedeem = async () => {
     if (!confirming) return;
-    const success = redeemReward(
+    const success = await redeemReward(
       confirming.id,
       confirming.name,
       confirming.image,
