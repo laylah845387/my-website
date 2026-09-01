@@ -3,11 +3,12 @@
 import Link from "next/link";
 import Image from "next/image";
 import PageContainer from "@/components/PageContainer";
+import DiscordIcon from "@/components/DiscordIcon";
 import { useApp } from "@/lib/store";
 import { ArrowRight, Zap, Gift, Star } from "lucide-react";
 
 export default function HomePage() {
-  const { state } = useApp();
+  const { state, session, sessionLoading, login } = useApp();
 
   return (
     <PageContainer>
@@ -45,13 +46,25 @@ export default function HomePage() {
           </span>
         </div>
 
-        <Link
-          href="/earn"
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-white text-bg font-bold text-[13px] tracking-[0.1em] uppercase hover:bg-gray-100 transition-colors"
-        >
-          Start Earning
-          <ArrowRight size={16} />
-        </Link>
+        {sessionLoading ? (
+          <div className="h-[46px] w-[220px] rounded-lg bg-bg-card border border-border animate-pulse" />
+        ) : session ? (
+          <Link
+            href="/earn"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-white text-bg font-bold text-[13px] tracking-[0.1em] uppercase hover:bg-gray-100 transition-colors"
+          >
+            Continue Earning
+            <ArrowRight size={16} />
+          </Link>
+        ) : (
+          <button
+            onClick={login}
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[#5865F2] text-white font-bold text-[13px] tracking-[0.1em] uppercase hover:bg-[#4752C4] transition-colors cursor-pointer"
+          >
+            <DiscordIcon size={16} />
+            Link Discord to Start Earning
+          </button>
+        )}
       </div>
 
       {/* How It Works */}
@@ -84,7 +97,7 @@ export default function HomePage() {
               Earn Points
             </h3>
             <p className="text-[12px] text-text-secondary leading-relaxed">
-              Each completed task rewards you with points. Accumulate more points to
+              Each completed task rewards you with points. Accumulate points to
               unlock rewards.
             </p>
           </div>

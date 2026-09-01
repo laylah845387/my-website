@@ -11,12 +11,21 @@ import React, {
 import { User, Order, Toast, ToastType } from "@/types";
 import { generateId } from "./utils";
 
+// ─── Discord Session ────────────────────────────────────────────
+export interface DiscordSession {
+  id: string;
+  username: string;
+  avatarUrl: string;
+}
+
 // ─── State Shape ────────────────────────────────────────────────
 interface AppState {
   user: User;
   orders: Order[];
   completedOffers: string[];
   toasts: Toast[];
+  discordSession: DiscordSession | null;
+  sessionLoading: boolean;
 }
 
 const DEFAULT_USER: User = {
@@ -31,6 +40,8 @@ const INITIAL_STATE: AppState = {
   orders: [],
   completedOffers: [],
   toasts: [],
+  discordSession: null,
+  sessionLoading: true,
 };
 
 // ─── Actions ────────────────────────────────────────────────────
@@ -41,7 +52,8 @@ type Action =
   | { type: "ADD_ORDER"; payload: Order }
   | { type: "COMPLETE_OFFER"; payload: { offerId: string; points: number } }
   | { type: "ADD_TOAST"; payload: Toast }
-  | { type: "REMOVE_TOAST"; payload: string };
+  | { type: "REMOVE_TOAST"; payload: string }
+  | { type: "SET_SESSION"; payload: DiscordSession | null };
 
 function appReducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -84,6 +96,19 @@ function appReducer(state: AppState, action: Action): AppState {
         ...state,
         toasts: state.toasts.filter((t) => t.id !== action.payload),
       };
+    case "SET_SESSION":
+      return {
+        ...state,
+        discordSession: action.payload,
+        sessionLoading: false,
+        user: action.payload
+          ? {
+              ...state.user,
+              discordId: action.payload.id,
+              username: action.payload.username,
+            }
+          : state.user,
+      };
     default:
       return state;
   }
@@ -92,7 +117,7 @@ function appReducer(state: AppState, action: Action): AppState {
 // ─── Storage ────────────────────────────────────────────────────
 const STORAGE_KEY = "capeverse-state";
 
-function loadState(): AppState | null {
+function loadState(): Partial<AppState> | null {
   if (typeof window === "undefined") return null;
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -109,8 +134,10 @@ function loadState(): AppState | null {
 function saveState(state: AppState) {
   if (typeof window === "undefined") return;
   try {
-    const { toasts, ...persistable } = state;
+    const { toasts, discordSession, sessionLoading, ...persistable } = state;
     void toasts;
+    void discordSession;
+    void sessionLoading;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(persistable));
   } catch {
     // ignore storage errors
@@ -120,6 +147,10 @@ function saveState(state: AppState) {
 // ─── Context ────────────────────────────────────────────────────
 interface AppContextValue {
   state: AppState;
+  session: DiscordSession | null;
+  sessionLoading: boolean;
+  login: () => void;
+  logout: () => Promise<void>;
   addPoints: (points: number) => void;
   redeemReward: (
     rewardId: string,
@@ -138,7 +169,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, INITIAL_STATE);
   const [hydrated, setHydrated] = React.useState(false);
 
-  // Hydrate from localStorage on mount
+  // Hydrate points/orders from localStorage on mount
   useEffect(() => {
     const saved = loadState();
     if (saved) {
@@ -147,12 +178,46 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setHydrated(true);
   }, []);
 
-  // Persist to localStorage on state change
+  // Persist points/orders to localStorage on state change
   useEffect(() => {
     if (hydrated) {
       saveState(state);
     }
   }, [state, hydrated]);
+
+  // Check whether the visitor has a linked Discord session
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/auth/session")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) {
+          dispatch({ type: "SET_SESSION", payload: data.user ?? null });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          dispatch({ type: "SET_SESSION", payload: null });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const login = useCallback(() => {
+    window.location.href = "/api/auth/discord/login";
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      dispatch({ type: "SET_SESSION", payload: null });
+    }
+  }, []);
 
   const showToast = useCallback((message: string, type: ToastType) => {
     const id = generateId();
@@ -228,6 +293,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider
       value={{
         state,
+        session: state.discordSession,
+        sessionLoading: state.sessionLoading,
+        login,
+        logout,
         addPoints,
         redeemReward,
         completeOffer,

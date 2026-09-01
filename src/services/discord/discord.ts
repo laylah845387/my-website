@@ -1,83 +1,121 @@
 /**
  * Discord Integration Service
  *
- * Placeholder for future Discord OAuth and user linking.
+ * Handles the Discord OAuth2 flow used to link a visitor's Discord account
+ * so their progress (points, completed tasks) can be tracked against it.
  *
- * TODO: Implement when Discord credentials are provided.
+ * Flow:
+ * 1. User clicks "Link Discord to Start Earning"
+ * 2. GET /api/auth/discord/login redirects to Discord's authorization URL
+ * 3. Discord redirects back to /api/auth/discord/callback with a code
+ * 4. We exchange the code for an access token
+ * 5. We fetch the user's Discord profile (id, username, avatar)
+ * 6. We store that in a signed, httpOnly session cookie
  *
- * Integration flow:
- * 1. User clicks "Login with Discord"
- * 2. Redirect to Discord OAuth2 authorization URL
- * 3. Handle callback with authorization code
- * 4. Exchange code for access token
- * 5. Fetch Discord user profile
- * 6. Link Discord account to CapeVerse user
- * 7. Persist association for future sessions
+ * Required environment variables:
+ * - DISCORD_CLIENT_ID
+ * - DISCORD_CLIENT_SECRET
+ * - DISCORD_REDIRECT_URI   (must exactly match the redirect URI registered
+ *                            in the Discord Developer Portal, including
+ *                            the protocol, e.g. https://yoursite.onrender.com/api/auth/discord/callback)
  */
+
+import crypto from "crypto";
 
 export interface DiscordUser {
   id: string;
   username: string;
   discriminator?: string;
-  avatar?: string;
-  email?: string;
+  avatar: string | null;
+  avatarUrl: string;
 }
 
-export interface DiscordConfig {
+interface DiscordConfig {
   clientId: string;
   clientSecret: string;
   redirectUri: string;
 }
 
-export class DiscordService {
-  private config: DiscordConfig;
+function getConfig(): DiscordConfig {
+  const clientId = process.env.DISCORD_CLIENT_ID;
+  const clientSecret = process.env.DISCORD_CLIENT_SECRET;
+  const redirectUri = process.env.DISCORD_REDIRECT_URI;
 
-  constructor() {
-    this.config = {
-      clientId: process.env.DISCORD_CLIENT_ID || "",
-      clientSecret: process.env.DISCORD_CLIENT_SECRET || "",
-      redirectUri: process.env.DISCORD_REDIRECT_URI || "",
-    };
+  if (!clientId || !clientSecret || !redirectUri) {
+    throw new Error(
+      "Discord OAuth is not configured. Set DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, and DISCORD_REDIRECT_URI."
+    );
   }
 
-  /**
-   * Generate the Discord OAuth2 authorization URL
-   * TODO: Implement with actual Discord OAuth2 flow
-   */
-  getAuthorizationUrl(): string {
-    // TODO: Construct proper Discord OAuth2 URL
-    // return `https://discord.com/api/oauth2/authorize?client_id=${this.config.clientId}&redirect_uri=${encodeURIComponent(this.config.redirectUri)}&response_type=code&scope=identify+email`;
-    return "#";
-  }
+  return { clientId, clientSecret, redirectUri };
+}
 
-  /**
-   * Exchange authorization code for user data
-   * TODO: Implement server-side token exchange
-   */
-  async authenticateUser(_code: string): Promise<DiscordUser | null> {
-    // TODO: Exchange code for token, then fetch user
-    return null;
-  }
+/** Generates a random, unguessable value used to prevent CSRF on the OAuth redirect. */
+export function generateState(): string {
+  return crypto.randomBytes(16).toString("hex");
+}
 
-  /**
-   * Link a Discord account to a CapeVerse user
-   * TODO: Implement database association
-   */
-  async linkAccount(
-    _capeVerseUserId: string,
-    _discordUser: DiscordUser
-  ): Promise<void> {
-    // TODO: Save Discord <-> CapeVerse user association
-  }
+/** Builds the URL that sends the user to Discord's consent screen. */
+export function getAuthorizationUrl(state: string): string {
+  const { clientId, redirectUri } = getConfig();
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: "code",
+    // "identify" is enough to get id/username/avatar — we don't request
+    // email or anything more sensitive than we actually need.
+    scope: "identify",
+    state,
+    prompt: "consent",
+  });
+  return `https://discord.com/api/oauth2/authorize?${params.toString()}`;
+}
 
-  /**
-   * Get the linked Discord user for a CapeVerse user
-   * TODO: Implement database lookup
-   */
-  async getLinkedAccount(
-    _capeVerseUserId: string
-  ): Promise<DiscordUser | null> {
-    // TODO: Look up linked Discord account
-    return null;
-  }
+/** Exchanges the authorization code Discord sent us for an access token. */
+export async function exchangeCodeForToken(code: string): Promise<string | null> {
+  const { clientId, clientSecret, redirectUri } = getConfig();
+
+  const body = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    grant_type: "authorization_code",
+    code,
+    redirect_uri: redirectUri,
+  });
+
+  const res = await fetch("https://discord.com/api/oauth2/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+    cache: "no-store",
+  });
+
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.access_token ?? null;
+}
+
+/** Fetches the logged-in Discord user's profile using their access token. */
+export async function fetchDiscordUser(accessToken: string): Promise<DiscordUser | null> {
+  const res = await fetch("https://discord.com/api/users/@me", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
+  });
+
+  if (!res.ok) return null;
+  const data = await res.json();
+
+  const avatarUrl: string = data.avatar
+    ? `https://cdn.discordapp.com/avatars/${data.id}/${data.avatar}.${
+        String(data.avatar).startsWith("a_") ? "gif" : "png"
+      }?size=128`
+    : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(data.id) >> 22n) % 6}.png`;
+
+  return {
+    id: data.id,
+    username: data.global_name || data.username,
+    discriminator: data.discriminator,
+    avatar: data.avatar ?? null,
+    avatarUrl,
+  };
 }
