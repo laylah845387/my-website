@@ -36,7 +36,8 @@ export async function POST(request: NextRequest) {
   }
 
   const provider = new BitcotasksProvider();
-  const result = await provider.startOffer(user.id, offerId);
+  const userIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "0.0.0.0";
+  const result = await provider.startOffer(user.id, offerId, userIp);
 
   return NextResponse.json(result);
 }

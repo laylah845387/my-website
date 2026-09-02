@@ -45,6 +45,11 @@ export async function getUserSnapshot(discordId: string) {
   return { points, completedOffers, orders };
 }
 
+export async function adjustPoints(discordId: string, delta: number): Promise<number> {
+  const redis = getRedis();
+  return redis.incrby(pointsKey(discordId), delta);
+}
+
 /**
  * Marks an offer complete and credits points, unless it was already
  * completed by this account (SADD returns 0 if the member already
