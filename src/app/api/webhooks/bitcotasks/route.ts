@@ -27,9 +27,18 @@ async function readParams(request: NextRequest): Promise<URLSearchParams> {
   if (request.method === "POST") {
     try {
       const contentType = request.headers.get("content-type") || "";
-      if (contentType.includes("application/x-www-form-urlencoded")) {
-        const text = await request.text();
-        new URLSearchParams(text).forEach((value, key) => params.set(key, value));
+
+      if (
+        contentType.includes("multipart/form-data") ||
+        contentType.includes("application/x-www-form-urlencoded")
+      ) {
+        // request.formData() handles both multipart and urlencoded bodies.
+        const formData = await request.formData();
+        formData.forEach((value, key) => {
+          if (typeof value === "string") {
+            params.set(key, value);
+          }
+        });
       } else if (contentType.includes("application/json")) {
         const json = await request.json();
         Object.entries(json ?? {}).forEach(([key, value]) => params.set(key, String(value)));
@@ -43,17 +52,7 @@ async function readParams(request: NextRequest): Promise<URLSearchParams> {
 }
 
 async function handlePostback(request: NextRequest): Promise<NextResponse> {
-  // TEMPORARY DEBUG LOGGING — remove once the integration is confirmed
-  // working. Logs the raw request so we can see exactly what BitcoTasks
-  // sends and how (visible in Render's Logs tab).
-  const rawBody = request.method === "POST" ? await request.clone().text() : "";
-  console.log("[bitcotasks postback] method:", request.method);
-  console.log("[bitcotasks postback] content-type:", request.headers.get("content-type"));
-  console.log("[bitcotasks postback] query string:", request.nextUrl.search);
-  console.log("[bitcotasks postback] raw body:", rawBody);
-
   const params = await readParams(request);
-  console.log("[bitcotasks postback] parsed params:", Object.fromEntries(params.entries()));
 
   const secret = process.env.BITCOTASKS_SECRET_KEY;
   if (!secret) {
