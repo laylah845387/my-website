@@ -45,6 +45,11 @@ async function readParams(request: NextRequest): Promise<URLSearchParams> {
 async function handlePostback(request: NextRequest): Promise<NextResponse> {
   const params = await readParams(request);
 
+  // TEMPORARY DEBUG LOGGING — remove once the integration is confirmed
+  // working. Logs every incoming postback so we can see exactly what
+  // BitcoTasks sends (visible in Render's Logs tab).
+  console.log("[bitcotasks postback] received:", Object.fromEntries(params.entries()));
+
   const secret = process.env.BITCOTASKS_SECRET_KEY;
   if (!secret) {
     // Misconfigured on our end — tell BitcoTasks to retry later rather
