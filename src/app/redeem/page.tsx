@@ -55,8 +55,7 @@ export default function RedeemPage() {
             REDEEM
           </h1>
           <p className="mt-3 text-[13px] font-medium tracking-[0.18em] text-text-secondary uppercase">
-            Exchange your points for exclusive digital rewards. Open a ticket in our
-            Discord server to receive your redeemed prizes.
+            Exchange your points for exclusive digital rewards.
           </p>
         </div>
 
@@ -236,7 +235,7 @@ export default function RedeemPage() {
             </h3>
 
             <p className="text-[13px] text-text-secondary text-center leading-relaxed mb-6">
-              Open a ticket in our Discord server to receive your redeemed rewards.
+              Open a ticket in our Discord server to deliver your redeemed rewards.
             </p>
 
             <a

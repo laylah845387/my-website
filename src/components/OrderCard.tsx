@@ -11,7 +11,7 @@ interface OrderCardProps {
 
 export default function OrderCard({ order, onUndeliveredClick }: OrderCardProps) {
   return (
-    <div className="flex items-center gap-4 p-4 rounded-xl bg-bg-card border border-border">
+    <div className="flex items-center gap-3 p-4 rounded-xl bg-bg-card border border-border">
       {/* Reward image */}
       <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-bg-elevated">
         <Image
@@ -28,7 +28,7 @@ export default function OrderCard({ order, onUndeliveredClick }: OrderCardProps)
         <h3 className="text-[14px] font-bold text-text-primary truncate">
           {order.rewardName}
         </h3>
-        <p className="text-[11px] text-text-secondary mt-0.5">
+        <p className="text-[11px] text-text-secondary mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis">
           {formatDate(order.createdAt)}
         </p>
       </div>
@@ -45,13 +45,13 @@ export default function OrderCard({ order, onUndeliveredClick }: OrderCardProps)
 
       {/* Delivery status badge */}
       {order.delivered ? (
-        <div className="px-3 py-1 rounded-md border text-[10px] font-bold tracking-[0.1em] uppercase shrink-0 bg-accent-green/10 text-accent-green border-accent-green/20">
+        <div className="px-2.5 py-1 rounded-md border text-[10px] font-bold tracking-[0.06em] uppercase shrink-0 whitespace-nowrap bg-accent-green/10 text-accent-green border-accent-green/20">
           Delivered
         </div>
       ) : (
         <button
           onClick={onUndeliveredClick}
-          className="px-3 py-1 rounded-md border text-[10px] font-bold tracking-[0.1em] uppercase shrink-0 bg-accent-red/10 text-accent-red border-accent-red/20 hover:bg-accent-red/20 transition-colors cursor-pointer"
+          className="px-2.5 py-1 rounded-md border text-[10px] font-bold tracking-[0.06em] uppercase shrink-0 whitespace-nowrap bg-accent-red/10 text-accent-red border-accent-red/20 hover:bg-accent-red/20 transition-colors cursor-pointer"
         >
           Undelivered
         </button>
