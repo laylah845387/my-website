@@ -55,7 +55,8 @@ export default function RedeemPage() {
             REDEEM
           </h1>
           <p className="mt-3 text-[13px] font-medium tracking-[0.18em] text-text-secondary uppercase">
-            Exchange your points for exclusive digital rewards.
+            Exchange your points for exclusive digital rewards. Open a ticket in our
+            Discord server to receive your redeemed prizes.
           </p>
         </div>
 
@@ -124,7 +125,11 @@ export default function RedeemPage() {
           ) : (
             <div className="space-y-3">
               {state.orders.map((order) => (
-                <OrderCard key={order.id} order={order} />
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  onUndeliveredClick={() => setShowTicketModal(true)}
+                />
               ))}
             </div>
           )}

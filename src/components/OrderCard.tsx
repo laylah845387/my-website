@@ -6,15 +6,10 @@ import { formatDate } from "@/lib/utils";
 
 interface OrderCardProps {
   order: Order;
+  onUndeliveredClick?: () => void;
 }
 
-export default function OrderCard({ order }: OrderCardProps) {
-  const statusStyles = {
-    COMPLETED: "bg-accent-green/10 text-accent-green border-accent-green/20",
-    PENDING: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-    FAILED: "bg-accent-red/10 text-accent-red border-accent-red/20",
-  };
-
+export default function OrderCard({ order, onUndeliveredClick }: OrderCardProps) {
   return (
     <div className="flex items-center gap-4 p-4 rounded-xl bg-bg-card border border-border">
       {/* Reward image */}
@@ -48,14 +43,19 @@ export default function OrderCard({ order }: OrderCardProps) {
         </div>
       </div>
 
-      {/* Status badge */}
-      <div
-        className={`px-3 py-1 rounded-md border text-[10px] font-bold tracking-[0.1em] uppercase shrink-0 ${
-          statusStyles[order.status]
-        }`}
-      >
-        {order.status}
-      </div>
+      {/* Delivery status badge */}
+      {order.delivered ? (
+        <div className="px-3 py-1 rounded-md border text-[10px] font-bold tracking-[0.1em] uppercase shrink-0 bg-accent-green/10 text-accent-green border-accent-green/20">
+          Delivered
+        </div>
+      ) : (
+        <button
+          onClick={onUndeliveredClick}
+          className="px-3 py-1 rounded-md border text-[10px] font-bold tracking-[0.1em] uppercase shrink-0 bg-accent-red/10 text-accent-red border-accent-red/20 hover:bg-accent-red/20 transition-colors cursor-pointer"
+        >
+          Undelivered
+        </button>
+      )}
     </div>
   );
 }
