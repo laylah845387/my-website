@@ -231,7 +231,7 @@ export default function RedeemPage() {
             </h3>
 
             <p className="text-[13px] text-text-secondary text-center leading-relaxed mb-6">
-              Open a ticket in our Discord server to receive your undelivered redeemed rewards.
+              Open a ticket in our Discord server to receive your redeemed rewards.
             </p>
 
             <a
