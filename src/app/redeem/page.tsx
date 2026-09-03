@@ -227,7 +227,7 @@ export default function RedeemPage() {
             </div>
 
             <h3 className="text-xl font-bold tracking-[0.08em] text-center uppercase font-heading mb-3">
-              Claim Your Prize
+              Claim Your Prizes
             </h3>
 
             <p className="text-[13px] text-text-secondary text-center leading-relaxed mb-6">
