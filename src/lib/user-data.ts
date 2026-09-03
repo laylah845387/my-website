@@ -17,6 +17,9 @@ function completedKey(discordId: string) {
 function ordersKey(discordId: string) {
   return `user:${discordId}:orders`;
 }
+function offerViewsKey(discordId: string) {
+  return `user:${discordId}:offer-views`;
+}
 
 export async function getPoints(discordId: string): Promise<number> {
   const redis = getRedis();
@@ -43,6 +46,28 @@ export async function getUserSnapshot(discordId: string) {
     getOrders(discordId),
   ]);
   return { points, completedOffers, orders };
+}
+
+/**
+ * How many times each completed offer has been shown to the user on a
+ * fresh page load since they completed it. Used to keep the "completed"
+ * label visible for exactly one return visit, then hide the offer
+ * entirely on the next one.
+ */
+export async function getOfferViewCounts(discordId: string): Promise<Record<string, number>> {
+  const redis = getRedis();
+  const raw = await redis.hgetall<Record<string, number>>(offerViewsKey(discordId));
+  if (!raw) return {};
+  const parsed: Record<string, number> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    parsed[key] = Number(value) || 0;
+  }
+  return parsed;
+}
+
+export async function markOfferViewed(discordId: string, offerId: string): Promise<void> {
+  const redis = getRedis();
+  await redis.hincrby(offerViewsKey(discordId), offerId, 1);
 }
 
 export async function adjustPoints(discordId: string, delta: number): Promise<number> {

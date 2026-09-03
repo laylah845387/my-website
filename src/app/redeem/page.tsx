@@ -7,11 +7,14 @@ import { rewards } from "@/data/rewards";
 import { Reward } from "@/types";
 import PageContainer from "@/components/PageContainer";
 import RewardCard from "@/components/RewardCard";
-import { X, Sparkles } from "lucide-react";
+import OrderCard from "@/components/OrderCard";
+import EmptyState from "@/components/EmptyState";
+import { X, Gift, History } from "lucide-react";
 
 export default function RedeemPage() {
   const { state, session, login, redeemReward } = useApp();
   const [confirming, setConfirming] = useState<Reward | null>(null);
+  const [showTicketModal, setShowTicketModal] = useState(false);
 
   const handleSelectReward = (reward: Reward) => {
     if (!session) {
@@ -72,30 +75,59 @@ export default function RedeemPage() {
                 </span>
               </div>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-bg-elevated border border-border flex items-center justify-center text-accent-green">
-              <Sparkles size={22} />
-            </div>
+            <button
+              onClick={() => setShowTicketModal(true)}
+              className="w-12 h-12 rounded-xl bg-white text-bg flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer"
+              aria-label="Claim an undelivered prize"
+              title="Claim an undelivered prize"
+            >
+              <Gift size={22} />
+            </button>
           </div>
           {/* Green accent line at bottom */}
           <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-accent-green shadow-[0_0_8px_rgba(74,222,128,0.4)]" />
         </div>
       </div>
 
-      {/* Reward List */}
-      <div className="max-w-4xl space-y-4">
-        <h2 className="text-[13px] font-bold tracking-[0.15em] text-text-secondary uppercase mb-2">
-          Available Rewards
-        </h2>
+      {/* Rewards + History side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-8 items-start">
+        {/* Left - Available Rewards */}
+        <div className="space-y-4">
+          <h2 className="text-[13px] font-bold tracking-[0.15em] text-text-secondary uppercase mb-2">
+            Available Rewards
+          </h2>
 
-        <div className="space-y-3">
-          {rewards.map((reward) => (
-            <RewardCard
-              key={reward.id}
-              reward={reward}
-              onSelect={handleSelectReward}
-              userPoints={state.user.points}
+          <div className="space-y-3">
+            {rewards.map((reward) => (
+              <RewardCard
+                key={reward.id}
+                reward={reward}
+                onSelect={handleSelectReward}
+                userPoints={state.user.points}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Right - Redeem History */}
+        <div className="space-y-4">
+          <h2 className="text-[13px] font-bold tracking-[0.15em] text-text-secondary uppercase mb-2">
+            Redeem History
+          </h2>
+
+          {state.orders.length === 0 ? (
+            <EmptyState
+              title="No redemptions yet"
+              message="Rewards you redeem will show up here."
+              icon={<History size={40} className="text-text-muted" />}
             />
-          ))}
+          ) : (
+            <div className="space-y-3">
+              {state.orders.map((order) => (
+                <OrderCard key={order.id} order={order} />
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -166,6 +198,51 @@ export default function RedeemPage() {
                 Confirm
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Claim / Undelivered Prize Modal */}
+      {showTicketModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-overlay animate-fade-in"
+            onClick={() => setShowTicketModal(false)}
+          />
+
+          <div
+            className="relative w-full max-w-[420px] bg-bg-card border border-border rounded-2xl shadow-2xl p-6 z-10"
+            style={{ animation: "scaleIn 0.2s ease-out" }}
+          >
+            <button
+              onClick={() => setShowTicketModal(false)}
+              className="absolute top-4 right-4 text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
+              aria-label="Close"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="w-14 h-14 rounded-xl bg-bg-elevated border border-border flex items-center justify-center text-accent-green mx-auto mb-4">
+              <Gift size={26} />
+            </div>
+
+            <h3 className="text-xl font-bold tracking-[0.08em] text-center uppercase font-heading mb-3">
+              Claim A Prize
+            </h3>
+
+            <p className="text-[13px] text-text-secondary text-center leading-relaxed mb-6">
+              If you&apos;ve redeemed a reward that hasn&apos;t been delivered yet, open a
+              ticket in our Discord server and our team will help you out.
+            </p>
+
+            <a
+              href="https://discord.gg/SKFuVVqpSV"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center h-10 rounded-lg bg-white text-bg text-[13px] font-bold tracking-[0.08em] uppercase hover:bg-gray-100 transition-colors"
+            >
+              Open Discord
+            </a>
           </div>
         </div>
       )}

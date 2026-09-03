@@ -11,8 +11,13 @@ import LoadingState from "@/components/LoadingState";
 
 export default function EarnPage() {
   const router = useRouter();
-  const { state, session, login, completeOffer, showToast } = useApp();
+  const { session, login, completeOffer, showToast } = useApp();
   const [offers, setOffers] = useState<Offer[]>([]);
+  // Tracks which currently-visible offers should show the "completed"
+  // label — this is intentionally separate from the account's full
+  // lifetime completed-offers history, since already-acknowledged
+  // completions get dropped from the list entirely (see /api/offers).
+  const [visibleCompleted, setVisibleCompleted] = useState<string[]>([]);
   const [offersLoading, setOffersLoading] = useState(true);
 
   useEffect(() => {
@@ -23,6 +28,7 @@ export default function EarnPage() {
       .then((data) => {
         if (!cancelled) {
           setOffers(data.offers ?? []);
+          setVisibleCompleted(data.completedOffers ?? []);
         }
       })
       .catch(() => {
@@ -48,7 +54,7 @@ export default function EarnPage() {
       return;
     }
 
-    if (state.completedOffers.includes(offer.id)) {
+    if (visibleCompleted.includes(offer.id)) {
       showToast("You have already completed this offer.", "info");
       return;
     }
@@ -80,8 +86,11 @@ export default function EarnPage() {
 
     // No live Bitcotasks connection yet — simulate completion locally so
     // the rest of the app (points, balance, redeem flow) is testable.
-    setTimeout(() => {
-      completeOffer(offer.id, offer.points);
+    setTimeout(async () => {
+      await completeOffer(offer.id, offer.points);
+      setVisibleCompleted((prev) =>
+        prev.includes(offer.id) ? prev : [...prev, offer.id]
+      );
     }, 1500);
   };
 
@@ -111,9 +120,7 @@ export default function EarnPage() {
         <div>
           <BalanceCard
             onRedeem={() => router.push("/redeem")}
-            onHistory={() =>
-              showToast("Transaction history coming soon.", "info")
-            }
+            onHistory={() => router.push("/redeem")}
           />
         </div>
       </div>
@@ -124,7 +131,7 @@ export default function EarnPage() {
       ) : (
         <OfferGrid
           offers={offers}
-          completedOffers={state.completedOffers}
+          completedOffers={visibleCompleted}
           onSelectOffer={handleSelectOffer}
         />
       )}
