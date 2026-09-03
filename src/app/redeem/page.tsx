@@ -227,12 +227,11 @@ export default function RedeemPage() {
             </div>
 
             <h3 className="text-xl font-bold tracking-[0.08em] text-center uppercase font-heading mb-3">
-              Claim A Prize
+              Claim Your Prize
             </h3>
 
             <p className="text-[13px] text-text-secondary text-center leading-relaxed mb-6">
-              If you&apos;ve redeemed a reward that hasn&apos;t been delivered yet, open a
-              ticket in our Discord server and our team will help you out.
+              Open a ticket in our Discord server to receive your undelivered redeemed rewards.
             </p>
 
             <a
