@@ -4,13 +4,16 @@ export function generateId(): string {
 
 export function formatDate(dateString: string): string {
   const date = new Date(dateString);
-  return date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
+  const datePart = date.toLocaleDateString("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "2-digit",
+  });
+  const timePart = date.toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
   });
+  return `${datePart}, ${timePart}`;
 }
 
 export function cn(...classes: (string | boolean | undefined | null)[]): string {

@@ -34,6 +34,8 @@ export async function POST(request: NextRequest) {
     rewardImage: rewardImage ?? "",
     points,
     status: "COMPLETED",
+    delivered: false,
+    discordId: user.id,
     createdAt: new Date().toISOString(),
   };
 

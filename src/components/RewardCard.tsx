@@ -27,7 +27,7 @@ export default function RewardCard({
       disabled={!canAfford}
     >
       {/* Reward image */}
-      <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0 bg-bg-elevated border border-border">
+      <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0 bg-bg-elevated">
         <Image
           src={reward.image}
           alt={reward.name}

@@ -35,6 +35,8 @@ export type Order = {
   rewardImage: string;
   points: number;
   status: "PENDING" | "COMPLETED" | "FAILED";
+  delivered: boolean;
+  discordId?: string;
   createdAt: string;
 };
 

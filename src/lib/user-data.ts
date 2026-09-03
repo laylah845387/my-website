@@ -17,9 +17,10 @@ function completedKey(discordId: string) {
 function ordersKey(discordId: string) {
   return `user:${discordId}:orders`;
 }
-function offerViewsKey(discordId: string) {
-  return `user:${discordId}:offer-views`;
-}
+// A single global list of every order ever placed, across all accounts —
+// this is what powers the admin "manage deliveries" view, since orders
+// otherwise only live inside each individual user's own list.
+const GLOBAL_ORDERS_KEY = "orders:all";
 
 export async function getPoints(discordId: string): Promise<number> {
   const redis = getRedis();
@@ -46,28 +47,6 @@ export async function getUserSnapshot(discordId: string) {
     getOrders(discordId),
   ]);
   return { points, completedOffers, orders };
-}
-
-/**
- * How many times each completed offer has been shown to the user on a
- * fresh page load since they completed it. Used to keep the "completed"
- * label visible for exactly one return visit, then hide the offer
- * entirely on the next one.
- */
-export async function getOfferViewCounts(discordId: string): Promise<Record<string, number>> {
-  const redis = getRedis();
-  const raw = await redis.hgetall<Record<string, number>>(offerViewsKey(discordId));
-  if (!raw) return {};
-  const parsed: Record<string, number> = {};
-  for (const [key, value] of Object.entries(raw)) {
-    parsed[key] = Number(value) || 0;
-  }
-  return parsed;
-}
-
-export async function markOfferViewed(discordId: string, offerId: string): Promise<void> {
-  const redis = getRedis();
-  await redis.hincrby(offerViewsKey(discordId), offerId, 1);
 }
 
 export async function adjustPoints(discordId: string, delta: number): Promise<number> {
@@ -114,5 +93,45 @@ export async function redeemRewardForUser(
 
   const newPoints = await redis.decrby(pointsKey(discordId), order.points);
   await redis.lpush(ordersKey(discordId), order);
+  await redis.lpush(GLOBAL_ORDERS_KEY, order);
   return { success: true, points: newPoints };
+}
+
+/**
+ * All orders ever placed, across every account — for the admin
+ * delivery-management view. Most recent first.
+ */
+export async function getAllOrders(limit = 200): Promise<Order[]> {
+  const redis = getRedis();
+  const raw = await redis.lrange<Order>(GLOBAL_ORDERS_KEY, 0, limit - 1);
+  return raw ?? [];
+}
+
+/**
+ * Flips an order's delivered flag, updating both the owning account's
+ * personal order list and the global admin index so they stay in sync.
+ * Redis lists don't support "update by field", so we find the matching
+ * entry by id and rewrite that one slot with LSET.
+ */
+export async function setOrderDelivered(
+  discordId: string,
+  orderId: string,
+  delivered: boolean
+): Promise<Order | null> {
+  const redis = getRedis();
+
+  const personalList = (await redis.lrange<Order>(ordersKey(discordId), 0, -1)) ?? [];
+  const personalIndex = personalList.findIndex((o) => o.id === orderId);
+  if (personalIndex === -1) return null;
+
+  const updated: Order = { ...personalList[personalIndex], delivered };
+  await redis.lset(ordersKey(discordId), personalIndex, updated);
+
+  const globalList = (await redis.lrange<Order>(GLOBAL_ORDERS_KEY, 0, -1)) ?? [];
+  const globalIndex = globalList.findIndex((o) => o.id === orderId);
+  if (globalIndex !== -1) {
+    await redis.lset(GLOBAL_ORDERS_KEY, globalIndex, updated);
+  }
+
+  return updated;
 }
