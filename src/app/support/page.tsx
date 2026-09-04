@@ -36,7 +36,7 @@ const FAQ_ITEMS = [
   },
   {
     q: "I redeemed a reward but haven't received it, what do I do?",
-    a: "Head to the Redeem page and click the gift icon (or the \"Undelivered\" badge on your order) to open a Discord ticket, or send us a message here.",
+    a: "If your order is marked as \"Undelivered\", send us a message here or open a ticket in our Discord server to receive your reward.",
   },
 ];
 
@@ -375,7 +375,7 @@ export default function SupportPage() {
                           </div>
                         ))}
 
-                        {ticket.replies.length === 0 && (
+                        {ticket.replies.every((r) => r.from !== "admin") && (
                           <p className="text-[11px] text-text-muted italic">
                             No replies yet — we&apos;ll get back to you soon.
                           </p>
