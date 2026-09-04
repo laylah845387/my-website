@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { useApp } from "@/lib/store";
 import { SupportTicket } from "@/types";
 import PageContainer from "@/components/PageContainer";
+import EmptyState from "@/components/EmptyState";
 import {
   HelpCircle,
   MessageCircle,
   Inbox,
+  History,
   ChevronDown,
   ChevronUp,
   Send,
@@ -61,6 +63,8 @@ export default function SupportPage() {
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(true);
   const [expandedTicket, setExpandedTicket] = useState<string | null>(null);
+  const [replyDraft, setReplyDraft] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
 
   const [submittedTicket, setSubmittedTicket] = useState<SupportTicket | null>(null);
 
@@ -115,13 +119,15 @@ export default function SupportPage() {
       }
 
       const data = await res.json();
-      if (data.ticket) {
-        setTickets((prev) => [data.ticket, ...prev]);
-        setSubmittedTicket(data.ticket);
-        setContactMessage("");
-      } else {
-        showToast("Something went wrong sending your message. Try again.", "error");
+
+      if (!res.ok || !data.ticket) {
+        showToast(data.error || "Something went wrong sending your message.", "error");
+        return;
       }
+
+      setTickets((prev) => [data.ticket, ...prev]);
+      setSubmittedTicket(data.ticket);
+      setContactMessage("");
     } catch {
       showToast("Something went wrong sending your message. Try again.", "error");
     } finally {
@@ -132,9 +138,9 @@ export default function SupportPage() {
   const handleExpandTicket = async (ticket: SupportTicket) => {
     const opening = expandedTicket !== ticket.id;
     setExpandedTicket(opening ? ticket.id : null);
+    setReplyDraft("");
 
     if (opening && ticket.unreadForUser) {
-      // Clear the ping locally right away, and tell the server.
       setTickets((prev) =>
         prev.map((t) => (t.id === ticket.id ? { ...t, unreadForUser: false } : t))
       );
@@ -147,6 +153,33 @@ export default function SupportPage() {
       } catch {
         // Non-critical — worst case the ping reappears next load.
       }
+    }
+  };
+
+  const handleUserReply = async (ticket: SupportTicket) => {
+    const message = replyDraft.trim();
+    if (!message) return;
+
+    setSendingReply(true);
+    try {
+      const res = await fetch("/api/support/tickets/reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketId: ticket.id, message }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.ticket) {
+        showToast(data.error || "Couldn't send your reply.", "error");
+        return;
+      }
+
+      setTickets((prev) => prev.map((t) => (t.id === ticket.id ? data.ticket : t)));
+      setReplyDraft("");
+    } catch {
+      showToast("Couldn't send your reply. Try again.", "error");
+    } finally {
+      setSendingReply(false);
     }
   };
 
@@ -254,15 +287,19 @@ export default function SupportPage() {
           </h2>
 
           {!session ? (
-            <p className="text-[12px] text-text-muted">
-              Sign in with Discord to view your past requests.
-            </p>
+            <EmptyState
+              title="Not signed in"
+              message="Sign in with Discord to view your past requests."
+              icon={<History size={40} className="text-text-muted" />}
+            />
           ) : ticketsLoading ? (
             <p className="text-[12px] text-text-muted">Loading...</p>
           ) : tickets.length === 0 ? (
-            <p className="text-[12px] text-text-muted">
-              Messages you send will show up here.
-            </p>
+            <EmptyState
+              title="No requests yet"
+              message="Messages you send will show up here."
+              icon={<History size={40} className="text-text-muted" />}
+            />
           ) : (
             <div className="space-y-2">
               {tickets.map((ticket) => {
@@ -292,7 +329,7 @@ export default function SupportPage() {
                           className={`px-2.5 py-1 rounded-md border text-[10px] font-bold tracking-[0.06em] uppercase whitespace-nowrap ${
                             ticket.status === "RESOLVED"
                               ? "bg-accent-green/10 text-accent-green border-accent-green/20"
-                              : "bg-bg-elevated text-text-secondary border-border"
+                              : "bg-amber-500/10 text-amber-400 border-amber-500/20"
                           }`}
                         >
                           {ticket.status === "RESOLVED" ? "Resolved" : "Open"}
@@ -319,10 +356,18 @@ export default function SupportPage() {
                         {ticket.replies.map((reply) => (
                           <div
                             key={reply.id}
-                            className="rounded-lg bg-accent-green/5 border border-accent-green/20 p-3"
+                            className={
+                              reply.from === "admin"
+                                ? "rounded-lg bg-accent-green/5 border border-accent-green/20 p-3"
+                                : "rounded-lg bg-bg-elevated border border-border p-3"
+                            }
                           >
-                            <p className="text-[10px] font-bold tracking-[0.1em] text-accent-green uppercase mb-1">
-                              Support Team
+                            <p
+                              className={`text-[10px] font-bold tracking-[0.1em] uppercase mb-1 ${
+                                reply.from === "admin" ? "text-accent-green" : "text-text-muted"
+                              }`}
+                            >
+                              {reply.from === "admin" ? "Support Team" : "You"}
                             </p>
                             <p className="text-[12px] text-text-secondary leading-relaxed">
                               {reply.message}
@@ -334,6 +379,25 @@ export default function SupportPage() {
                           <p className="text-[11px] text-text-muted italic">
                             No replies yet — we&apos;ll get back to you soon.
                           </p>
+                        )}
+
+                        {ticket.status === "OPEN" && (
+                          <div className="space-y-2 pt-1">
+                            <textarea
+                              value={replyDraft}
+                              onChange={(e) => setReplyDraft(e.target.value)}
+                              placeholder="Reply to this request..."
+                              rows={2}
+                              className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-[12px] text-text-primary placeholder-text-muted resize-none focus:outline-none focus:border-border-hover transition-colors"
+                            />
+                            <button
+                              onClick={() => handleUserReply(ticket)}
+                              disabled={sendingReply || !replyDraft.trim()}
+                              className="px-4 py-1.5 rounded-lg bg-white text-bg text-[11px] font-bold tracking-[0.06em] uppercase hover:bg-gray-100 transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                              {sendingReply ? "Sending..." : "Reply"}
+                            </button>
+                          </div>
                         )}
                       </div>
                     )}
@@ -373,20 +437,20 @@ export default function SupportPage() {
               Message Sent
             </h3>
 
-            <p className="text-[13px] text-text-secondary text-center leading-relaxed mb-3">
+            <div className="flex items-center justify-center rounded-lg bg-bg-elevated border border-border px-4 py-2.5 mb-4">
+              <span className="text-[10px] font-bold tracking-[0.1em] text-text-muted uppercase">
+                Support ID:&nbsp;
+              </span>
+              <span className="text-[12px] font-mono text-text-primary leading-none">
+                {submittedTicket.id}
+              </span>
+            </div>
+
+            <p className="text-[13px] text-text-secondary text-center leading-relaxed mb-6">
               Your message was sent to our support team and will be handled
               shortly. If you would like to speak 1-on-1 with a team member,
               join our Discord server to open a direct support ticket.
             </p>
-
-            <div className="rounded-lg bg-bg-elevated border border-border px-4 py-2 text-center mb-6">
-              <span className="text-[10px] font-bold tracking-[0.1em] text-text-muted uppercase">
-                Support ID:{" "}
-              </span>
-              <span className="text-[12px] font-mono text-text-primary">
-                {submittedTicket.id}
-              </span>
-            </div>
 
             <a
               href="https://discord.gg/SKFuVVqpSV"

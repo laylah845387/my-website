@@ -34,6 +34,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Message is required" }, { status: 400 });
   }
 
-  const ticket = await createTicket(user.id, user.username, message.trim());
-  return NextResponse.json({ ticket });
+  const result = await createTicket(user.id, user.username, message.trim());
+  if (!result.ticket) {
+    return NextResponse.json({ error: result.error ?? "Could not create ticket" }, { status: 400 });
+  }
+  return NextResponse.json({ ticket: result.ticket });
 }

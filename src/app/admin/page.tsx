@@ -255,7 +255,7 @@ export default function AdminPage() {
                           className={`px-2.5 py-1 rounded-md border text-[10px] font-bold tracking-[0.06em] uppercase whitespace-nowrap ${
                             ticket.status === "RESOLVED"
                               ? "bg-accent-green/10 text-accent-green border-accent-green/20"
-                              : "bg-bg-elevated text-text-secondary border-border"
+                              : "bg-amber-500/10 text-amber-400 border-amber-500/20"
                           }`}
                         >
                           {ticket.status === "RESOLVED" ? "Resolved" : "Open"}
@@ -282,10 +282,18 @@ export default function AdminPage() {
                         {ticket.replies.map((reply) => (
                           <div
                             key={reply.id}
-                            className="rounded-lg bg-accent-green/5 border border-accent-green/20 p-3"
+                            className={
+                              reply.from === "admin"
+                                ? "rounded-lg bg-accent-green/5 border border-accent-green/20 p-3"
+                                : "rounded-lg bg-bg-elevated border border-border p-3"
+                            }
                           >
-                            <p className="text-[10px] font-bold tracking-[0.1em] text-accent-green uppercase mb-1">
-                              Support Team
+                            <p
+                              className={`text-[10px] font-bold tracking-[0.1em] uppercase mb-1 ${
+                                reply.from === "admin" ? "text-accent-green" : "text-text-muted"
+                              }`}
+                            >
+                              {reply.from === "admin" ? "Support Team" : ticket.username ?? "User"}
                             </p>
                             <p className="text-[12px] text-text-secondary leading-relaxed">
                               {reply.message}

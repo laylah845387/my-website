@@ -8,20 +8,38 @@ function ticketsKey(discordId: string) {
 // the admin support inbox, mirroring the same pattern as orders.
 const GLOBAL_TICKETS_KEY = "tickets:all";
 
-function generateId(prefix: string): string {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+const MAX_OPEN_TICKETS_PER_USER = 3;
+
+// Plain 14-digit numeric ID — easy to read/type/reference, no prefix or letters.
+function generateTicketId(): string {
+  return `${Date.now()}${Math.floor(Math.random() * 10)}`;
+}
+
+function generateReplyId(): string {
+  return `reply_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
 export async function createTicket(
   discordId: string,
   username: string | undefined,
   message: string
-): Promise<SupportTicket> {
+): Promise<{ ticket: SupportTicket | null; error?: string }> {
+  const openCount = (await getTicketsForUser(discordId)).filter(
+    (t) => t.status === "OPEN"
+  ).length;
+
+  if (openCount >= MAX_OPEN_TICKETS_PER_USER) {
+    return {
+      ticket: null,
+      error: `You can only have ${MAX_OPEN_TICKETS_PER_USER} open requests at a time. Wait for one to be resolved before sending another.`,
+    };
+  }
+
   const redis = getRedis();
   const now = new Date().toISOString();
 
   const ticket: SupportTicket = {
-    id: generateId("ticket"),
+    id: generateTicketId(),
     discordId,
     username,
     message,
@@ -34,7 +52,7 @@ export async function createTicket(
 
   await redis.lpush(ticketsKey(discordId), ticket);
   await redis.lpush(GLOBAL_TICKETS_KEY, ticket);
-  return ticket;
+  return { ticket };
 }
 
 export async function getTicketsForUser(discordId: string): Promise<SupportTicket[]> {
@@ -85,7 +103,7 @@ export async function addAdminReply(
 ): Promise<SupportTicket | null> {
   return mutateTicket(discordId, ticketId, (ticket) => {
     const reply: SupportReply = {
-      id: generateId("reply"),
+      id: generateReplyId(),
       from: "admin",
       message,
       createdAt: new Date().toISOString(),
@@ -98,6 +116,43 @@ export async function addAdminReply(
       updatedAt: new Date().toISOString(),
     };
   });
+}
+
+/**
+ * Adds a reply from the ticket owner themself — only allowed while the
+ * ticket is still OPEN, so people can't keep bumping a resolved ticket
+ * forever (they'd open a new one instead).
+ */
+export async function addUserReply(
+  discordId: string,
+  ticketId: string,
+  message: string
+): Promise<{ ticket: SupportTicket | null; error?: string }> {
+  const list = await getTicketsForUser(discordId);
+  const existing = list.find((t) => t.id === ticketId);
+
+  if (!existing) {
+    return { ticket: null, error: "Ticket not found." };
+  }
+  if (existing.status !== "OPEN") {
+    return { ticket: null, error: "This request is already resolved." };
+  }
+
+  const updated = await mutateTicket(discordId, ticketId, (ticket) => {
+    const reply: SupportReply = {
+      id: generateReplyId(),
+      from: "user",
+      message,
+      createdAt: new Date().toISOString(),
+    };
+    return {
+      ...ticket,
+      replies: [...ticket.replies, reply],
+      updatedAt: new Date().toISOString(),
+    };
+  });
+
+  return { ticket: updated };
 }
 
 export async function markTicketRead(
