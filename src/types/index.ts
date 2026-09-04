@@ -46,6 +46,25 @@ export type UserProgress = {
   totalPointsEarned: number;
 };
 
+export type SupportReply = {
+  id: string;
+  from: "user" | "admin";
+  message: string;
+  createdAt: string;
+};
+
+export type SupportTicket = {
+  id: string;
+  discordId: string;
+  username?: string;
+  message: string;
+  status: "OPEN" | "RESOLVED";
+  replies: SupportReply[];
+  unreadForUser: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ToastType = "success" | "error" | "info";
 
 export type Toast = {
