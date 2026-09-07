@@ -65,7 +65,7 @@ export default function EarnPage() {
       const res = await fetch("/api/offers/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ offerId: offer.id }),
+        body: JSON.stringify({ offerId: offer.id, provider: offer.provider }),
       });
 
       if (res.status === 401) {

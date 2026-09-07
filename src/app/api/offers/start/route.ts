@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySessionCookie } from "@/lib/session";
-import { BitcotasksProvider } from "@/services/offerwall";
+import { BitcotasksProvider, CpxResearchProvider } from "@/services/offerwall";
 
 /**
  * POST /api/offers/start
- * body: { offerId: string }
+ * body: { offerId: string, provider?: string }
  *
  * Starts an offer through the OfferwallProvider abstraction. Requires
  * the visitor to be signed in with Discord, since progress is tracked
- * per-account.
- *
- * Once real Bitcotasks credentials are added, provider.startOffer()
- * will return a real redirectUrl (the actual task page to send the
- * user to). Until then it returns { redirectUrl: undefined }, and the
- * page falls back to the existing local "simulate completion" flow.
+ * per-account. `provider` tells us which network's API to ask (each
+ * Offer object already carries this field from /api/offers) — if it's
+ * missing or unrecognized, we fall back to BitcoTasks for backwards
+ * compatibility with the demo data, which has no real provider.
  */
 export async function POST(request: NextRequest) {
   const cookie = request.cookies.get("session")?.value;
@@ -24,9 +22,11 @@ export async function POST(request: NextRequest) {
   }
 
   let offerId: string | undefined;
+  let providerName: string | undefined;
   try {
     const body = await request.json();
     offerId = body?.offerId;
+    providerName = body?.provider;
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
@@ -35,9 +35,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing offerId" }, { status: 400 });
   }
 
-  const provider = new BitcotasksProvider();
   const userIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "0.0.0.0";
-  const result = await provider.startOffer(user.id, offerId, userIp);
 
+  const provider =
+    providerName === "cpx-research" ? new CpxResearchProvider() : new BitcotasksProvider();
+
+  const result = await provider.startOffer(user.id, offerId, userIp);
   return NextResponse.json(result);
 }

@@ -1,5 +1,4 @@
 import { Offer, UserProgress } from "@/types";
-import { offers as mockOffers } from "@/data/offers";
 import { OfferwallProvider } from "./types";
 
 /**
@@ -89,7 +88,7 @@ export class BitcotasksProvider implements OfferwallProvider {
 
   async getOffers(userId: string, userIp: string = "0.0.0.0"): Promise<Offer[]> {
     if (!this.isConfigured()) {
-      return mockOffers;
+      return [];
     }
 
     const results = await Promise.all(
@@ -112,11 +111,7 @@ export class BitcotasksProvider implements OfferwallProvider {
       })
     );
 
-    const combined = results.flat();
-
-    // While pending BitcoTasks' approval (or if the API hiccups), don't
-    // leave the page empty — show demo offers instead.
-    return combined.length > 0 ? combined : mockOffers;
+    return results.flat();
   }
 
   async getUserProgress(userId: string): Promise<UserProgress> {

@@ -55,6 +55,26 @@ export async function adjustPoints(discordId: string, delta: number): Promise<nu
 }
 
 /**
+ * CPX Research reuses the same trans_id for a transaction's entire
+ * lifecycle — first calling with status "1" (completed), and possibly
+ * calling again later with status "2" (canceled/fraud) for the SAME
+ * trans_id if it's later reversed. Records the last known status for a
+ * transaction and returns whatever the previous status was (or null if
+ * this is the first time we've seen it), so the caller can tell a
+ * genuine state change from a duplicate resend.
+ */
+export async function markCpxTransactionStatus(
+  transId: string,
+  newStatus: string
+): Promise<string | null> {
+  const redis = getRedis();
+  const key = "cpx:transaction-status";
+  const previous = await redis.hget<string>(key, transId);
+  await redis.hset(key, { [transId]: newStatus });
+  return previous ?? null;
+}
+
+/**
  * Marks an offer complete and credits points, unless it was already
  * completed by this account (SADD returns 0 if the member already
  * existed in the set, which we use to detect that atomically).
