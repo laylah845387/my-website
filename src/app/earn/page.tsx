@@ -13,7 +13,7 @@ import { History } from "lucide-react";
 
 export default function EarnPage() {
   const router = useRouter();
-  const { session, login, completeOffer, showToast } = useApp();
+  const { session, login, showToast } = useApp();
   const [offers, setOffers] = useState<Offer[]>([]);
   // Tracks which currently-visible offers should show the "completed"
   // label — this is intentionally separate from the account's full
@@ -78,22 +78,19 @@ export default function EarnPage() {
       const data = await res.json();
 
       if (data.redirectUrl) {
-        // Real Bitcotasks task — send the user to it in a new tab.
+        // Send the user to the real task in a new tab. Points are only
+        // ever credited by the provider's own postback webhook once the
+        // task is actually verified — never by anything happening here.
         window.open(data.redirectUrl, "_blank", "noopener,noreferrer");
         return;
       }
-    } catch {
-      // Fall through to the local demo simulation below if the request fails.
-    }
 
-    // No live Bitcotasks connection yet — simulate completion locally so
-    // the rest of the app (points, balance, redeem flow) is testable.
-    setTimeout(async () => {
-      await completeOffer(offer.id, offer.points);
-      setVisibleCompleted((prev) =>
-        prev.includes(offer.id) ? prev : [...prev, offer.id]
-      );
-    }, 1500);
+      // No redirect link came back — do NOT credit points under any
+      // circumstances. Just tell the user and stop.
+      showToast("Couldn't start this offer right now. Please try again in a moment.", "error");
+    } catch {
+      showToast("Couldn't start this offer right now. Please try again in a moment.", "error");
+    }
   };
 
   return (

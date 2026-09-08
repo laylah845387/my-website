@@ -121,7 +121,6 @@ interface AppContextValue {
     rewardImage: string,
     pointsCost: number
   ) => Promise<boolean>;
-  completeOffer: (offerId: string, points: number) => Promise<void>;
   showToast: (message: string, type: ToastType) => void;
   removeToast: (id: string) => void;
 }
@@ -192,36 +191,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const completeOffer = useCallback(
-    async (offerId: string, points: number) => {
-      try {
-        const res = await fetch("/api/offers/complete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ offerId, points }),
-        });
-
-        if (res.status === 401) {
-          showToast("Please sign in with Discord first.", "error");
-          return;
-        }
-
-        const data = await res.json();
-
-        if (data.alreadyCompleted) {
-          showToast("You have already completed this offer.", "info");
-          return;
-        }
-
-        dispatch({ type: "COMPLETE_OFFER", payload: { offerId, points: data.points } });
-        showToast(`+${points} points earned!`, "success");
-      } catch {
-        showToast("Something went wrong saving your progress. Try again.", "error");
-      }
-    },
-    [showToast]
-  );
-
   const redeemReward = useCallback(
     async (
       rewardId: string,
@@ -274,7 +243,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         sessionLoading: state.sessionLoading,
         login,
         logout,
-        completeOffer,
         redeemReward,
         showToast,
         removeToast,
