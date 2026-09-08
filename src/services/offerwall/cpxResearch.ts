@@ -17,6 +17,12 @@ import { OfferwallProvider } from "./types";
  * gated publisher dashboard under "Postback Settings", not in their
  * public docs. Once you have that, share it and the webhook can be added
  * the same way the BitcoTasks one was.
+ * Note: we use the `href` field (direct single-survey link) rather than
+ * `href_new` — CPX's docs recommend href_new as the "mobile optimized"
+ * option, but it actually opens a broader searchable list of multiple
+ * surveys on CPX's own site rather than the one specific survey the user
+ * clicked. Since our cards each promise one specific survey and payout,
+ * `href` is the correct match for that UX.
  */
 
 interface CpxSurveyRaw {
@@ -75,7 +81,10 @@ function toOffer(raw: CpxSurveyRaw): Offer {
         ? "A few quick profiling questions, then the full survey."
         : "Share your opinion and earn points.",
     provider: "cpx-research",
-    url: raw.href_new || raw.href,
+    // Use the direct single-survey link (not href_new, which opens a
+    // broader multi-survey list page on CPX's site rather than this
+    // specific survey — see the note at the top of this file).
+    url: raw.href || raw.href_new,
   };
 }
 
@@ -129,7 +138,7 @@ export class CpxResearchProvider implements OfferwallProvider {
       if (data.status !== "success") return { redirectUrl: undefined };
 
       const match = (data.surveys || []).find((s) => s.id === rawId);
-      const link = match?.href_new || match?.href;
+      const link = match?.href || match?.href_new;
       return { redirectUrl: link };
     } catch {
       return { redirectUrl: undefined };
