@@ -8,6 +8,8 @@ import PageContainer from "@/components/PageContainer";
 import BalanceCard from "@/components/BalanceCard";
 import OfferGrid from "@/components/OfferGrid";
 import LoadingState from "@/components/LoadingState";
+import EmptyState from "@/components/EmptyState";
+import { History } from "lucide-react";
 
 export default function EarnPage() {
   const router = useRouter();
@@ -128,6 +130,12 @@ export default function EarnPage() {
       {/* Offer Grid */}
       {offersLoading ? (
         <LoadingState />
+      ) : offers.length === 0 ? (
+        <EmptyState
+          title="No offers available right now"
+          message="Please check back in a few minutes."
+          icon={<History size={40} className="text-text-muted" />}
+        />
       ) : (
         <OfferGrid
           offers={offers}
