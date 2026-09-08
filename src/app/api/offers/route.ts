@@ -2,18 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifySessionCookie } from "@/lib/session";
 import { BitcotasksProvider, CpxResearchProvider } from "@/services/offerwall";
 import { getCompletedOffers } from "@/lib/user-data";
-import { offers as mockOffers } from "@/data/offers";
 
 /**
  * GET /api/offers
  *
- * Serves the combined list of offers from every configured provider
- * (BitcoTasks, CPX Research, ...). Each offer is tagged with its
- * `provider` field so /api/offers/start knows which one to ask when the
- * user clicks it. If NEITHER provider has real offers available yet
- * (e.g. still pending approval), demo data fills the page instead of
- * leaving it empty — but as soon as either provider returns anything
- * real, the demo data disappears entirely rather than mixing with it.
+ * Serves the combined list of REAL offers from every configured provider
+ * (BitcoTasks, CPX Research, ...). No demo/placeholder data is ever
+ * mixed in — if both providers come back empty, the response is simply
+ * an empty list, and the Earn page shows its own "no offers available"
+ * empty state rather than fake tasks.
  */
 export async function GET(request: NextRequest) {
   const cookie = request.cookies.get("session")?.value;
@@ -26,8 +23,7 @@ export async function GET(request: NextRequest) {
     new CpxResearchProvider().getOffers(userId, userIp),
   ]);
 
-  const realOffers = [...bitcotasksOffers, ...cpxOffers];
-  const allOffers = realOffers.length > 0 ? realOffers : mockOffers;
+  const allOffers = [...bitcotasksOffers, ...cpxOffers];
 
   if (!user) {
     return NextResponse.json({ offers: allOffers });
