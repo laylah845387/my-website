@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySessionCookie } from "@/lib/session";
-import { BitcotasksProvider, CpxResearchProvider } from "@/services/offerwall";
+import { BitcotasksProvider, CpxResearchProvider, AffikeProvider } from "@/services/offerwall";
 import { getCompletedOffers } from "@/lib/user-data";
 
 /**
  * GET /api/offers
  *
  * Serves the combined list of REAL offers from every configured provider
- * (BitcoTasks, CPX Research, ...). No demo/placeholder data is ever
- * mixed in — if both providers come back empty, the response is simply
- * an empty list, and the Earn page shows its own "no offers available"
- * empty state rather than fake tasks.
+ * (BitcoTasks, CPX Research, Affike, ...). No demo/placeholder data is
+ * ever mixed in — if every provider comes back empty, the response is
+ * simply an empty list, and the Earn page shows its own "no offers
+ * available" empty state rather than fake tasks.
  */
 export async function GET(request: NextRequest) {
   const cookie = request.cookies.get("session")?.value;
@@ -18,12 +18,13 @@ export async function GET(request: NextRequest) {
   const userIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "0.0.0.0";
   const userId = user?.id ?? "guest";
 
-  const [bitcotasksOffers, cpxOffers] = await Promise.all([
+  const [bitcotasksOffers, cpxOffers, affikeOffers] = await Promise.all([
     new BitcotasksProvider().getOffers(userId, userIp),
     new CpxResearchProvider().getOffers(userId, userIp),
+    new AffikeProvider().getOffers(userId, userIp),
   ]);
 
-  const allOffers = [...bitcotasksOffers, ...cpxOffers];
+  const allOffers = [...bitcotasksOffers, ...cpxOffers, ...affikeOffers];
 
   if (!user) {
     return NextResponse.json({ offers: allOffers });

@@ -74,6 +74,33 @@ export async function markCpxTransactionStatus(
   return previous ?? null;
 }
 
+export interface AffikeTransactionRecord {
+  userId: string;
+  points: number;
+  status: string;
+}
+
+/**
+ * Affike's postback can, in principle, resend the same txn_id with a
+ * different status later (e.g. an approved conversion reversed as a
+ * chargeback) — the same lifecycle CPX Research has. Unlike CPX, Affike
+ * doesn't echo back how many points it thinks we credited, so we record
+ * that ourselves here ({userId, points, status}) the first time we see a
+ * txn_id, so a later status change can be reversed by exactly the amount
+ * originally credited instead of guessing. Returns the previous record
+ * (or null if this is the first time we've seen this txn_id).
+ */
+export async function markAffikeTransaction(
+  txnId: string,
+  record: AffikeTransactionRecord
+): Promise<AffikeTransactionRecord | null> {
+  const redis = getRedis();
+  const key = "affike:transactions";
+  const previous = await redis.hget<AffikeTransactionRecord>(key, txnId);
+  await redis.hset(key, { [txnId]: record });
+  return previous ?? null;
+}
+
 /**
  * Marks an offer complete and credits points, unless it was already
  * completed by this account (SADD returns 0 if the member already
