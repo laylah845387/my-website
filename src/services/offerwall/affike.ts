@@ -42,6 +42,29 @@ function getAffId(): string | null {
   return process.env.AFFIKE_AFF_ID || null;
 }
 
+// Affike's /api/offerwall/offers catalog lists ~1500 offers marketplace-
+// wide, but a given offer_id only actually works with /api/track/click
+// once it's been "activated" once through Affike's own dashboard (open
+// its "Your Tracking Link" modal / test the link there — confirmed by
+// testing: an offer_id fails with {"error":"Invalid tracking link"}
+// until visited once via Affike's own UI, and works from our site every
+// time after that). So instead of showing the full catalog and letting
+// most offers dead-end for real users, we only show offers whose ID is
+// in this allowlist.
+//
+// To add an offer: open it in Affike's dashboard, view/test its
+// tracking link once (this activates it), then add its numeric ID here
+// (comma-separated in the env var, e.g. "1225,1327,1340").
+function getAllowedOfferIds(): Set<string> | null {
+  const raw = process.env.AFFIKE_ACTIVATED_OFFER_IDS;
+  if (!raw) return null;
+  const ids = raw
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+  return ids.length ? new Set(ids) : null;
+}
+
 function buildOffersUrl(apiKey: string): string {
   const params = new URLSearchParams({
     api_key: apiKey,
@@ -114,7 +137,19 @@ export class AffikeProvider implements OfferwallProvider {
 
       const data: AffikeResponse = await res.json();
 
-      return (data.offers || []).map(toOffer);
+      const allowedIds = getAllowedOfferIds();
+      const rawOffers = data.offers || [];
+      const filtered = allowedIds
+        ? rawOffers.filter((o) => allowedIds.has(String(o.id)))
+        : [];
+
+      if (!allowedIds) {
+        console.warn(
+          "[Affike] AFFIKE_ACTIVATED_OFFER_IDS is not set — showing zero Affike offers until you set it, since most offer IDs in the catalog aren't activated for click tracking yet. See the comment on getAllowedOfferIds() in this file."
+        );
+      }
+
+      return filtered.map(toOffer);
     } catch (error) {
       console.error(
         "[Affike] Failed to fetch offers:",

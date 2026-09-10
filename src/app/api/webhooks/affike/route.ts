@@ -74,7 +74,13 @@ export async function GET(request: NextRequest) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const userId = params.get("click_id");
+  // We don't yet know for certain whether Affike echoes our sub2 value
+  // back as {click_id} or as its own {sub2} macro on the postback —
+  // check "Available macros" on the Postbacks page again now that a
+  // real click has gone through with sub2 set, and add &sub2={sub2} to
+  // the postback URL too if that macro exists. Reading both here so
+  // whichever one actually carries it still works.
+  const userId = params.get("click_id") || params.get("sub2");
   const txnId = params.get("txn_id");
   const rewardRaw = params.get("user_reward");
   const status = params.get("status") || "approved";
