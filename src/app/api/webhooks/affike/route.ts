@@ -35,15 +35,22 @@ import { adjustPoints, markAffikeTransaction } from "@/lib/user-data";
  *
  * We credit `user_reward`, not `payout` or `publisher_earned` — those
  * two look like your own affiliate revenue/earnings figures, whereas
- * `user_reward` reads as the one meant for the end user. Confirm this
- * against a real "Test Postback" once conversions start flowing, and
- * swap the field read below if it turns out to be wrong.
+ * `user_reward` reads as the one meant for the end user. Confirmed via a
+ * real "Test Postback": it arrives as a plain USD amount ("1.00" for a
+ * $1 test reward), NOT pre-converted points — unlike the Offers API's
+ * `points` field, which Affike converts for you. So here we do the
+ * conversion ourselves using AFFIKE_POINTS_PER_DOLLAR (see below).
  *
- * `status` values aren't documented anywhere we could find. We treat
- * anything containing reject/declin/cancel/chargeback/revers/fraud
- * (case-insensitive) as a reversal of a previous credit, and credit
- * everything else as approved. Once you've seen real values in the
- * "Recent Postbacks" log, tighten this to an exact allow-list instead.
+ * `status` values: confirmed via the same test — approved conversions
+ * send the literal string "approved". Rejections/chargebacks aren't
+ * confirmed yet; we treat anything containing
+ * reject/declin/cancel/chargeback/revers/fraud (case-insensitive) as a
+ * reversal of a previous credit, and credit everything else. Tighten
+ * this to an exact allow-list once you've seen a real rejection.
+ *
+ * Env var: AFFIKE_POINTS_PER_DOLLAR — set this to match the
+ * "pointsPerDollar" value shown in the `config` object returned
+ * alongside your offers (e.g. 100). Defaults to 100 if unset.
  */
 
 function looksLikeReversal(status: string): boolean {
@@ -51,6 +58,11 @@ function looksLikeReversal(status: string): boolean {
   return ["reject", "declin", "cancel", "chargeback", "revers", "fraud"].some((kw) =>
     s.includes(kw)
   );
+}
+
+function dollarsToPoints(dollars: number): number {
+  const rate = parseFloat(process.env.AFFIKE_POINTS_PER_DOLLAR || "100");
+  return Math.max(0, Math.round(dollars * (isNaN(rate) ? 100 : rate)));
 }
 
 export async function GET(request: NextRequest) {
@@ -78,7 +90,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse("Missing parameters", { status: 400 });
   }
 
-  const points = Math.max(0, Math.round(parseFloat(rewardRaw) || 0));
+  const points = dollarsToPoints(parseFloat(rewardRaw) || 0);
   const isReversal = looksLikeReversal(status);
 
   const previous = await markAffikeTransaction(txnId, { userId, points, status });

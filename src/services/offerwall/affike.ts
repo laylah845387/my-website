@@ -89,7 +89,11 @@ function buildClickUrl(apiKey: string, offerId: string, userId: string): string 
     click_id: userId,
     api_key: apiKey,
   });
-  return `https://affike.com/track/click?${params.toString()}`;
+  // NOTE: the prose example on Affike's docs page shows
+  // "affike.com/track/click" (no /api/ prefix), but their own API
+  // reference table lists the real endpoint as "GET /api/track/click" —
+  // matching every other endpoint's /api/ prefix. The prose version 404s.
+  return `https://affike.com/api/track/click?${params.toString()}`;
 }
 
 function toOffer(raw: AffikeRawOffer): Offer {
