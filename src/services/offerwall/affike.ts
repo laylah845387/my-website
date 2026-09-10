@@ -113,7 +113,7 @@ export class AffikeProvider implements OfferwallProvider {
     return getApiKey() !== null;
   }
 
-  async getOffers(): Promise<Offer[]> {
+  async getOffers(_userId?: string, _userIp?: string): Promise<Offer[]> {
     if (!this.isConfigured()) return [];
 
     const apiKey = getApiKey();
@@ -134,7 +134,11 @@ export class AffikeProvider implements OfferwallProvider {
     return { userId, completedOffers: [], totalPointsEarned: 0 };
   }
 
-  async startOffer(userId: string, offerId: string): Promise<{ redirectUrl?: string }> {
+  async startOffer(
+    userId: string,
+    offerId: string,
+    _userIp?: string
+  ): Promise<{ redirectUrl?: string }> {
     const apiKey = getApiKey();
     if (!apiKey) return { redirectUrl: undefined };
 
