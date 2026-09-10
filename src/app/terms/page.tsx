@@ -1,7 +1,7 @@
 import PageContainer from "@/components/PageContainer";
 
 export const metadata = {
-  title: "Terms of Service — GIVEAWAY HUB",
+  title: "Terms of Service — Giveaway Hub",
 };
 
 export default function TermsPage() {
@@ -16,7 +16,7 @@ export default function TermsPage() {
             1. What This Site Does
           </h2>
           <p>
-            GIVEAWAY HUB lets signed-in users complete tasks and offers from our
+            Giveaway Hub lets signed-in users complete tasks and offers from our
             third-party partners (such as surveys, app installs, and other
             promotions) in exchange for points. Points can be redeemed for
             rewards shown on the site.

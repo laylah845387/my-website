@@ -135,6 +135,13 @@ export default function HomePage() {
         >
           Terms of Service
         </Link>
+        <span className="mx-3 text-[11px] text-text-secondary">•</span>
+        <Link
+          href="/privacy"
+          className="text-[11px] font-medium tracking-[0.1em] text-text-secondary hover:text-text-primary transition-colors uppercase"
+        >
+          Privacy Policy
+        </Link>
       </div>
     </PageContainer>
   );
