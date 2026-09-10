@@ -20,6 +20,13 @@ interface AffikeRawOffer {
   popularity?: number;
   conversionEvents?: AffikeConversionEvent[];
   points: number;
+
+  // Keep these in case Affike adds/returns a tracking URL.
+  url?: string;
+  link?: string;
+  click_url?: string;
+  tracking_url?: string;
+  redirect_url?: string;
 }
 
 interface AffikeConfig {
@@ -46,28 +53,15 @@ function buildOffersUrl(apiKey: string): string {
   return `https://affike.com/api/offerwall/offers?${params.toString()}`;
 }
 
-/**
- * Affike's publisher click URL.
- *
- * IMPORTANT:
- * This is intentionally /track/click, NOT /api/track/click.
- */
-function buildClickUrl(offerId: string, clickId: string): string {
-  const params = new URLSearchParams({
-    offer_id: offerId,
-    click_id: clickId,
-  });
-
-  return `https://affike.com/track/click?${params.toString()}`;
-}
-
 function toOffer(raw: AffikeRawOffer): Offer {
   const points = Math.max(0, Math.round(raw.points || 0));
   const steps = raw.conversionEvents?.length;
 
   return {
     id: `affike-${raw.id}`,
-    type: raw.category ? raw.category.toUpperCase() : "OFFER",
+    type: raw.category
+      ? raw.category.toUpperCase()
+      : "OFFER",
     duration: steps
       ? `${steps} STEP${steps > 1 ? "S" : ""}`
       : "VARIES",
@@ -78,6 +72,14 @@ function toOffer(raw: AffikeRawOffer): Offer {
     title: raw.name,
     description: raw.description || "",
     provider: "affike",
+
+    // If Affike ever returns a direct URL, preserve it.
+    url:
+      raw.url ||
+      raw.link ||
+      raw.click_url ||
+      raw.tracking_url ||
+      raw.redirect_url,
   };
 }
 
@@ -101,15 +103,18 @@ export class AffikeProvider implements OfferwallProvider {
     }
 
     try {
-      const res = await fetch(buildOffersUrl(apiKey), {
-        cache: "no-store",
-      });
+      const res = await fetch(
+        buildOffersUrl(apiKey),
+        {
+          cache: "no-store",
+        }
+      );
 
       if (!res.ok) {
         const body = await res.text().catch(() => "");
 
         console.error(
-          `[Affike] offers request failed: ${res.status} ${body}`
+          `[Affike] Offers API failed: ${res.status} ${body}`
         );
 
         return [];
@@ -119,7 +124,11 @@ export class AffikeProvider implements OfferwallProvider {
 
       return (data.offers || []).map(toOffer);
     } catch (error) {
-      console.error("[Affike] failed to fetch offers:", error);
+      console.error(
+        "[Affike] Failed to fetch offers:",
+        error
+      );
+
       return [];
     }
   }
@@ -141,33 +150,47 @@ export class AffikeProvider implements OfferwallProvider {
       return {};
     }
 
-    const rawOfferId = offerId.replace(/^affike-/, "");
+    const rawOfferId = offerId.replace(
+      /^affike-/,
+      ""
+    );
 
     if (!rawOfferId) {
-      console.error("[Affike] Missing offer ID");
+      console.error(
+        "[Affike] Missing offer ID"
+      );
+
       return {};
     }
 
     /*
      * IMPORTANT:
      *
-     * Do NOT call /api/track/click from our server.
-     * Do NOT fall back to /api/track/click.
+     * Do NOT send the browser to:
      *
-     * Affike's publisher-facing tracking URL is /track/click.
+     *   /api/track/click
+     *
+     * We confirmed that endpoint is not the
+     * individual-offer redirect mechanism for
+     * the Affike account you're using.
+     *
+     * Your Affike account provides the official
+     * Offerwall iframe instead.
+     *
+     * Since the Offers API does not return an
+     * individual tracking URL, we cannot safely
+     * manufacture one here.
      */
-    const redirectUrl = buildClickUrl(rawOfferId, userId);
 
-    console.log(
-      `[Affike] starting offer: offer_id=${rawOfferId}, click_id=${userId}`
+    console.warn(
+      `[Affike] No direct tracking URL available for offer ${rawOfferId}`
     );
 
-    return {
-      redirectUrl,
-    };
+    return {};
   }
 
   async onOfferCompleted(): Promise<void> {
-    // Affike completions are handled by the S2S postback webhook.
+    // Affike conversions are delivered through
+    // the S2S postback webhook.
   }
 }
