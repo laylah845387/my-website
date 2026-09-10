@@ -1,4 +1,3 @@
-ts
 import { Offer } from "@/types";
 import { OfferwallProvider } from "./types";
 
