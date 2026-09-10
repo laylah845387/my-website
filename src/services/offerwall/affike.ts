@@ -38,6 +38,10 @@ function getApiKey(): string | null {
   return process.env.AFFIKE_API_KEY || null;
 }
 
+function getAffId(): string | null {
+  return process.env.AFFIKE_AFF_ID || null;
+}
+
 function buildOffersUrl(apiKey: string): string {
   const params = new URLSearchParams({
     api_key: apiKey,
@@ -70,20 +74,23 @@ function toOffer(raw: AffikeRawOffer): Offer {
 
 export class AffikeProvider implements OfferwallProvider {
   private isConfigured(): boolean {
-    return getApiKey() !== null;
+    return (
+      getApiKey() !== null &&
+      getAffId() !== null
+    );
   }
 
   async getOffers(
     _userId?: string,
     _userIp?: string
   ): Promise<Offer[]> {
-    if (!this.isConfigured()) {
-      return [];
-    }
-
     const apiKey = getApiKey();
 
     if (!apiKey) {
+      console.error(
+        "[Affike] AFFIKE_API_KEY is missing"
+      );
+
       return [];
     }
 
@@ -131,11 +138,11 @@ export class AffikeProvider implements OfferwallProvider {
     offerId: string,
     _userIp?: string
   ): Promise<{ redirectUrl?: string }> {
-    const apiKey = getApiKey();
+    const affId = getAffId();
 
-    if (!apiKey) {
+    if (!affId) {
       console.error(
-        "[Affike] AFFIKE_API_KEY is missing"
+        "[Affike] AFFIKE_AFF_ID is missing"
       );
 
       return {};
@@ -163,9 +170,8 @@ export class AffikeProvider implements OfferwallProvider {
     }
 
     const params = new URLSearchParams({
+      aff_id: affId,
       offer_id: rawOfferId,
-      click_id: userId,
-      api_key: apiKey,
     });
 
     const clickUrl =
@@ -173,6 +179,13 @@ export class AffikeProvider implements OfferwallProvider {
 
     console.log(
       `[Affike] Registering click: offer=${rawOfferId}, user=${userId}`
+    );
+
+    console.log(
+      `[Affike] Tracking URL: ${clickUrl.replace(
+        affId,
+        "[AFF_ID]"
+      )}`
     );
 
     try {
@@ -219,6 +232,7 @@ export class AffikeProvider implements OfferwallProvider {
   }
 
   async onOfferCompleted(): Promise<void> {
-    // Affike conversions are handled by the S2S postback webhook.
+    // Affike conversions are handled
+    // by the S2S postback webhook.
   }
 }
