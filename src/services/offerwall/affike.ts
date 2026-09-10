@@ -1,4 +1,4 @@
-```ts
+ts
 import { Offer } from "@/types";
 import { OfferwallProvider } from "./types";
 
@@ -223,4 +223,3 @@ export class AffikeProvider implements OfferwallProvider {
     // Affike conversions are handled by the S2S postback webhook.
   }
 }
-```
