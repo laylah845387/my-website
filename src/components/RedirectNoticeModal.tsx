@@ -1,0 +1,91 @@
+"use client";
+
+import { useEffect } from "react";
+
+interface RedirectNoticeModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export default function RedirectNoticeModal({ isOpen, onClose }: RedirectNoticeModalProps) {
+  // This popup's only job is to reassure someone who switches back to
+  // this tab while their offer is still open elsewhere. So the moment
+  // they actually come back — whether that's seconds later because they
+  // tabbed back in early, or minutes later after finishing the offer —
+  // there's no reason to make them click through it. Auto-dismiss on
+  // return instead of requiring "Got it".
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleReturn = () => {
+      if (document.visibilityState === "visible") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("focus", handleReturn);
+    document.addEventListener("visibilitychange", handleReturn);
+
+    return () => {
+      window.removeEventListener("focus", handleReturn);
+      document.removeEventListener("visibilitychange", handleReturn);
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-overlay animate-fade-in" onClick={onClose} />
+
+      {/* Modal */}
+      <div
+        className="relative w-full max-w-[420px] bg-bg-card border border-border rounded-2xl shadow-2xl animate-scale-in px-6 pt-8 pb-6 text-center"
+        style={{ animation: "scaleIn 0.2s ease-out" }}
+      >
+        <p className="text-[15px] font-semibold text-text-primary leading-relaxed">
+          You are being redirected to a new window to complete your offer. Once
+          you&apos;re done, return back here to receive your points.
+        </p>
+        <p className="text-[12px] text-text-secondary mt-3">
+          Points are only rewarded for fully completed offers.
+        </p>
+
+        <button
+          onClick={onClose}
+          className="mt-6 w-full h-10 rounded-lg bg-accent-green text-bg text-[13px] font-bold tracking-[0.08em] hover:bg-accent-green/90 transition-colors uppercase"
+        >
+          Got it
+        </button>
+      </div>
+
+      <style jsx>{`
+        @keyframes scaleIn {
+          from {
+            opacity: 0;
+            transform: scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+        .animate-scale-in {
+          animation: scaleIn 0.2s ease-out;
+        }
+        .animate-fade-in {
+          animation: fadeIn 0.15s ease-out;
+        }
+      `}</style>
+    </div>
+  );
+}

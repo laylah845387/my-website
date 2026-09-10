@@ -9,6 +9,7 @@ import BalanceCard from "@/components/BalanceCard";
 import OfferGrid from "@/components/OfferGrid";
 import LoadingState from "@/components/LoadingState";
 import EmptyState from "@/components/EmptyState";
+import RedirectNoticeModal from "@/components/RedirectNoticeModal";
 import { History } from "lucide-react";
 
 export default function EarnPage() {
@@ -21,6 +22,7 @@ export default function EarnPage() {
   // completions get dropped from the list entirely (see /api/offers).
   const [visibleCompleted, setVisibleCompleted] = useState<string[]>([]);
   const [offersLoading, setOffersLoading] = useState(true);
+  const [redirectNoticeOpen, setRedirectNoticeOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +84,7 @@ export default function EarnPage() {
         // ever credited by the provider's own postback webhook once the
         // task is actually verified — never by anything happening here.
         window.open(data.redirectUrl, "_blank", "noopener,noreferrer");
+        setRedirectNoticeOpen(true);
         return;
       }
 
@@ -140,6 +143,11 @@ export default function EarnPage() {
           onSelectOffer={handleSelectOffer}
         />
       )}
+
+      <RedirectNoticeModal
+        isOpen={redirectNoticeOpen}
+        onClose={() => setRedirectNoticeOpen(false)}
+      />
     </PageContainer>
   );
 }
