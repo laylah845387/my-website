@@ -21,12 +21,6 @@ interface AffikeRawOffer {
   popularity?: number;
   conversionEvents?: AffikeConversionEvent[];
   points: number;
-
-  url?: string;
-  link?: string;
-  click_url?: string;
-  tracking_url?: string;
-  redirect_url?: string;
 }
 
 interface AffikeConfig {
@@ -72,13 +66,6 @@ function toOffer(raw: AffikeRawOffer): Offer {
     title: raw.name,
     description: raw.description || "",
     provider: "affike",
-
-    url:
-      raw.url ||
-      raw.link ||
-      raw.click_url ||
-      raw.tracking_url ||
-      raw.redirect_url,
   };
 }
 
@@ -175,16 +162,6 @@ export class AffikeProvider implements OfferwallProvider {
 
       return {};
     }
-
-    /*
-     * Ask Affike's click endpoint to register the
-     * click and return the actual advertiser URL.
-     *
-     * IMPORTANT:
-     * redirect: "manual" prevents Node from following
-     * the redirect itself. We need the Location header
-     * so our frontend can send the user there.
-     */
 
     const params = new URLSearchParams({
       offer_id: rawOfferId,
