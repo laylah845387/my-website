@@ -169,17 +169,23 @@ export class AffikeProvider implements OfferwallProvider {
       return {};
     }
 
+    // sub2 is the confirmed real param name for a custom Sub ID, tested
+    // directly against the dashboard's own tracking-link generator (the
+    // UI just labels it "Sub ID 2" — the actual query param is `sub2`).
+    // We use it to carry our own userId through the click, so the
+    // postback can tell us who to credit. Whether it comes back as
+    // {click_id} or as its own {sub2} macro on the postback isn't
+    // confirmed yet — see the note in the webhook file.
     const params = new URLSearchParams({
       aff_id: affId,
       offer_id: rawOfferId,
+      sub2: userId,
     });
 
     const clickUrl =
       `https://affike.com/api/track/click?${params.toString()}`;
 
-    console.log(
-      `[Affike] Returning tracking URL: offer=${rawOfferId}, user=${userId}`
-    );
+    console.log(`[Affike] Generated click URL: ${clickUrl}`);
 
     // Return the Affike tracking URL directly.
     // The user's browser will open it and Affike will handle

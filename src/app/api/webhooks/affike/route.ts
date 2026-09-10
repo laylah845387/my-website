@@ -1,177 +1,106 @@
-import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { adjustPoints, markAffikeTransaction } from "@/lib/user-data";
 
-function verifySignature(
-  userId: string,
-  payout: string,
-  transactionId: string,
-  signature: string,
-  secret: string
-): boolean {
-  const stringToSign = userId + payout + transactionId;
+/**
+ * Affike S2S Postback receiver.
+ *
+ * IMPORTANT — do not "fix" this back to HMAC-signature verification.
+ * Affike's current (redesigned) dashboard has NO Secret Key anywhere in
+ * the UI and NO {signature} macro on the Postbacks page — confirmed by
+ * checking Profile and the Postbacks page directly. The only real
+ * available macros are:
+ *   {click_id} {payout} {publisher_earned} {user_reward} {offer_id}
+ *   {txn_id} {status} {currency}
+ * There is no {user_id} or {signature} macro. A prior pass at this file
+ * (via ChatGPT) reverted it to a signature-based version copied from
+ * Affike's stale docs page — that version will always 500, since
+ * AFFIKE_SECRET_KEY doesn't exist to configure.
+ *
+ * Instead, this endpoint is protected by our own shared secret embedded
+ * directly in the postback URL as a literal query param (NOT one of
+ * Affike's `{macro}` tokens) — see AFFIKE_POSTBACK_SECRET below.
+ *
+ * Paste this exact URL into Affike's dashboard → Postbacks → "Your
+ * Postback (S2S) URL" field (swap in your real secret):
+ *
+ *   https://giveaway-hub-rewards.onrender.com/api/webhooks/affike?secret=YOUR_SECRET&click_id={click_id}&user_reward={user_reward}&txn_id={txn_id}&status={status}&offer_id={offer_id}
+ *
+ * Required env vars:
+ * - AFFIKE_POSTBACK_SECRET — any random string you generate yourself,
+ *   must exactly match the `secret=` value in the URL above.
+ * - AFFIKE_POINTS_PER_DOLLAR — set to match the "pointsPerDollar" value
+ *   from your account's config (confirmed 100 previously). Defaults to
+ *   100 if unset.
+ *
+ * Confirmed via a real "Test Postback": `user_reward` arrives as a plain
+ * USD amount (e.g. "1.00"), NOT pre-converted points, so we convert it
+ * ourselves. `status` arrives as the literal string "approved" for a
+ * successful conversion; rejections/chargebacks aren't confirmed yet, so
+ * we treat anything containing reject/declin/cancel/chargeback/
+ * revers/fraud (case-insensitive) as a reversal and credit everything
+ * else.
+ *
+ * We identify the user from `click_id`. As of the aff_id-based tracking
+ * link switch, confirm this is still how the user gets identified — if
+ * the new tracking links don't carry a per-user sub ID, `click_id` on
+ * the postback may come back empty or be Affike's own internal click
+ * identifier rather than something we control. This needs to be
+ * verified against a real Sub ID test before relying on it in
+ * production — see the note in affike.ts's startOffer.
+ */
 
-  const expectedSignature = crypto
-    .createHmac("sha256", secret)
-    .update(stringToSign)
-    .digest("hex");
-
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expectedSignature)
+function looksLikeReversal(status: string): boolean {
+  const s = status.toLowerCase();
+  return ["reject", "declin", "cancel", "chargeback", "revers", "fraud"].some((kw) =>
+    s.includes(kw)
   );
 }
 
 function dollarsToPoints(dollars: number): number {
-  const rate = parseFloat(
-    process.env.AFFIKE_POINTS_PER_DOLLAR || "100"
-  );
-
-  return Math.max(
-    0,
-    Math.round(dollars * (Number.isFinite(rate) ? rate : 100))
-  );
-}
-
-function isReversal(status: string): boolean {
-  const value = status.toLowerCase();
-
-  return [
-    "reject",
-    "declin",
-    "cancel",
-    "chargeback",
-    "revers",
-    "fraud",
-  ].some((keyword) => value.includes(keyword));
+  const rate = parseFloat(process.env.AFFIKE_POINTS_PER_DOLLAR || "100");
+  return Math.max(0, Math.round(dollars * (isNaN(rate) ? 100 : rate)));
 }
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
 
-  const secret = process.env.AFFIKE_SECRET_KEY;
-
-  if (!secret) {
-    console.error("[Affike] AFFIKE_SECRET_KEY is not configured");
-
-    return new NextResponse(
-      "Affike webhook is not configured",
-      { status: 500 }
-    );
+  const expectedSecret = process.env.AFFIKE_POSTBACK_SECRET;
+  if (!expectedSecret) {
+    return new NextResponse("Postback not configured", { status: 500 });
   }
 
-  const userId = params.get("user_id");
-  const clickId = params.get("publisher_click_id");
-  const payoutRaw = params.get("payout");
-  const offerId = params.get("offer_id");
-  const transactionId = params.get("transaction_id");
-  const signature = params.get("signature");
+  const providedSecret = params.get("secret");
+  if (!providedSecret || providedSecret !== expectedSecret) {
+    return new NextResponse("Unauthorized", { status: 401 });
+  }
+
+  const userId = params.get("click_id");
+  const txnId = params.get("txn_id");
+  const rewardRaw = params.get("user_reward");
   const status = params.get("status") || "approved";
+  const offerId = params.get("offer_id");
 
-  if (
-    !userId ||
-    !transactionId ||
-    !payoutRaw ||
-    !signature
-  ) {
-    return new NextResponse(
-      "Missing required parameters",
-      { status: 400 }
-    );
+  if (!userId || !txnId || !rewardRaw) {
+    return new NextResponse("Missing parameters", { status: 400 });
   }
 
-  const payout = parseFloat(payoutRaw);
+  const points = dollarsToPoints(parseFloat(rewardRaw) || 0);
+  const isReversal = looksLikeReversal(status);
 
-  if (!Number.isFinite(payout) || payout < 0) {
-    return new NextResponse(
-      "Invalid payout",
-      { status: 400 }
-    );
-  }
+  const previous = await markAffikeTransaction(txnId, { userId, points, status });
 
-  const validSignature = verifySignature(
-    userId,
-    payoutRaw,
-    transactionId,
-    signature,
-    secret
-  );
-
-  if (!validSignature) {
-    console.warn(
-      `[Affike] Invalid signature for transaction ${transactionId}`
-    );
-
-    return new NextResponse(
-      "Invalid signature",
-      { status: 401 }
-    );
-  }
-
-  const points = dollarsToPoints(payout);
-  const reversal = isReversal(status);
-
-  const previous = await markAffikeTransaction(
-    transactionId,
-    {
-      userId,
-      points,
-      status,
-    }
-  );
-
-  /*
-   * Duplicate transaction.
-   */
   if (previous) {
-    /*
-     * Approved -> reversal/chargeback.
-     */
-    if (
-      reversal &&
-      !isReversal(previous.status)
-    ) {
-      await adjustPoints(
-        previous.userId,
-        -previous.points
-      );
-
-      return NextResponse.json({
-        status: "reversed",
-        transactionId,
-        offerId,
-        clickId,
-      });
+    if (isReversal && !looksLikeReversal(previous.status)) {
+      await adjustPoints(previous.userId, -previous.points);
+      return NextResponse.json({ status: "reversed", offerId, txnId });
     }
-
-    return new NextResponse(
-      "Duplicate transaction",
-      { status: 409 }
-    );
+    return new NextResponse("Duplicate transaction", { status: 409 });
   }
 
-  /*
-   * A reversal that we have never seen before
-   * should not create negative points.
-   */
-  if (reversal) {
-    return NextResponse.json({
-      status: "ignored",
-      transactionId,
-      offerId,
-    });
+  if (isReversal) {
+    return NextResponse.json({ status: "ignored", offerId, txnId });
   }
 
-  /*
-   * Credit the user.
-   */
   await adjustPoints(userId, points);
-
-  return NextResponse.json({
-    status: "credited",
-    userId,
-    transactionId,
-    offerId,
-    points,
-  });
+  return NextResponse.json({ status: "ok", offerId, txnId });
 }
