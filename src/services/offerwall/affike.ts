@@ -178,57 +178,15 @@ export class AffikeProvider implements OfferwallProvider {
       `https://affike.com/api/track/click?${params.toString()}`;
 
     console.log(
-      `[Affike] Registering click: offer=${rawOfferId}, user=${userId}`
+      `[Affike] Returning tracking URL: offer=${rawOfferId}, user=${userId}`
     );
 
-    console.log(
-      `[Affike] Tracking URL: ${clickUrl.replace(
-        affId,
-        "[AFF_ID]"
-      )}`
-    );
-
-    try {
-      const response = await fetch(clickUrl, {
-        method: "GET",
-        redirect: "manual",
-        cache: "no-store",
-      });
-
-      console.log(
-        `[Affike] Click response: ${response.status}`
-      );
-
-      const location =
-        response.headers.get("location");
-
-      if (location) {
-        console.log(
-          "[Affike] Redirect destination received"
-        );
-
-        return {
-          redirectUrl: location,
-        };
-      }
-
-      const body = await response
-        .text()
-        .catch(() => "");
-
-      console.error(
-        `[Affike] No redirect returned. Status=${response.status}, body=${body}`
-      );
-
-      return {};
-    } catch (error) {
-      console.error(
-        "[Affike] Click request failed:",
-        error
-      );
-
-      return {};
-    }
+    // Return the Affike tracking URL directly.
+    // The user's browser will open it and Affike will handle
+    // the redirect to the advertiser.
+    return {
+      redirectUrl: clickUrl,
+    };
   }
 
   async onOfferCompleted(): Promise<void> {
