@@ -1,3 +1,4 @@
+```ts
 import { Offer } from "@/types";
 import { OfferwallProvider } from "./types";
 
@@ -21,7 +22,6 @@ interface AffikeRawOffer {
   conversionEvents?: AffikeConversionEvent[];
   points: number;
 
-  // Keep these in case Affike adds/returns a tracking URL.
   url?: string;
   link?: string;
   click_url?: string;
@@ -73,7 +73,6 @@ function toOffer(raw: AffikeRawOffer): Offer {
     description: raw.description || "",
     provider: "affike",
 
-    // If Affike ever returns a direct URL, preserve it.
     url:
       raw.url ||
       raw.link ||
@@ -146,7 +145,21 @@ export class AffikeProvider implements OfferwallProvider {
     offerId: string,
     _userIp?: string
   ): Promise<{ redirectUrl?: string }> {
+    const apiKey = getApiKey();
+
+    if (!apiKey) {
+      console.error(
+        "[Affike] AFFIKE_API_KEY is missing"
+      );
+
+      return {};
+    }
+
     if (!userId) {
+      console.error(
+        "[Affike] Missing user ID"
+      );
+
       return {};
     }
 
@@ -164,33 +177,73 @@ export class AffikeProvider implements OfferwallProvider {
     }
 
     /*
+     * Ask Affike's click endpoint to register the
+     * click and return the actual advertiser URL.
+     *
      * IMPORTANT:
-     *
-     * Do NOT send the browser to:
-     *
-     *   /api/track/click
-     *
-     * We confirmed that endpoint is not the
-     * individual-offer redirect mechanism for
-     * the Affike account you're using.
-     *
-     * Your Affike account provides the official
-     * Offerwall iframe instead.
-     *
-     * Since the Offers API does not return an
-     * individual tracking URL, we cannot safely
-     * manufacture one here.
+     * redirect: "manual" prevents Node from following
+     * the redirect itself. We need the Location header
+     * so our frontend can send the user there.
      */
 
-    console.warn(
-      `[Affike] No direct tracking URL available for offer ${rawOfferId}`
+    const params = new URLSearchParams({
+      offer_id: rawOfferId,
+      click_id: userId,
+      api_key: apiKey,
+    });
+
+    const clickUrl =
+      `https://affike.com/api/track/click?${params.toString()}`;
+
+    console.log(
+      `[Affike] Registering click: offer=${rawOfferId}, user=${userId}`
     );
 
-    return {};
+    try {
+      const response = await fetch(clickUrl, {
+        method: "GET",
+        redirect: "manual",
+        cache: "no-store",
+      });
+
+      console.log(
+        `[Affike] Click response: ${response.status}`
+      );
+
+      const location =
+        response.headers.get("location");
+
+      if (location) {
+        console.log(
+          "[Affike] Redirect destination received"
+        );
+
+        return {
+          redirectUrl: location,
+        };
+      }
+
+      const body = await response
+        .text()
+        .catch(() => "");
+
+      console.error(
+        `[Affike] No redirect returned. Status=${response.status}, body=${body}`
+      );
+
+      return {};
+    } catch (error) {
+      console.error(
+        "[Affike] Click request failed:",
+        error
+      );
+
+      return {};
+    }
   }
 
   async onOfferCompleted(): Promise<void> {
-    // Affike conversions are delivered through
-    // the S2S postback webhook.
+    // Affike conversions are handled by the S2S postback webhook.
   }
 }
+```
