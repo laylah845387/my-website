@@ -118,13 +118,22 @@ export default function HomePage() {
       </div>
 
       {/* CTA */}
-      <div className="text-center mt-16 pb-8">
+      <div className="text-center mt-16 pb-4">
         <Link
           href="/earn"
           className="inline-flex items-center gap-2 text-[13px] font-semibold tracking-[0.12em] text-accent-green hover:text-accent-green/80 transition-colors uppercase"
         >
           Go to Offers
           <ArrowRight size={14} />
+        </Link>
+      </div>
+
+      <div className="text-center pb-8">
+        <Link
+          href="/terms"
+          className="text-[11px] font-medium tracking-[0.1em] text-text-secondary hover:text-text-primary transition-colors uppercase"
+        >
+          Terms of Service
         </Link>
       </div>
     </PageContainer>
