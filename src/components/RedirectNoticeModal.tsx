@@ -19,11 +19,13 @@ export default function RedirectNoticeModal({ isOpen, onClose }: RedirectNoticeM
         style={{ animation: "scaleIn 0.2s ease-out" }}
       >
         <p className="text-[15px] font-semibold text-text-primary leading-relaxed">
-          You are being redirected to a new window to complete your offer. Once
-          you&apos;re done, return back here to receive your points.
+          You are being redirected to a new window to complete your offer.
         </p>
         <p className="text-[12px] text-text-secondary mt-3">
-          Points are only rewarded for fully completed offers.
+          When you have completed your offer, return back here to receive your
+          points. Points are only rewarded for fully completed offers. Some
+          offers may require you to sign up for a subscription or download an
+          app.
         </p>
 
         <button
