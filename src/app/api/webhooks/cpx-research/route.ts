@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { adjustPoints, markCpxTransactionStatus } from "@/lib/user-data";
+import { adjustPoints, markCpxTransactionStatus, markOfferComplete } from "@/lib/user-data";
 
 /**
  * CPX Research Postback receiver.
@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
   const userId = params.get("user_id");
   const amountLocal = params.get("amount_local");
   const hash = params.get("hash");
+  const rawOfferId = params.get("offer_id");
 
   if (!status || !transId || !userId || !amountLocal || !hash) {
     return new NextResponse("ERROR: Missing parameters", { status: 200 });
@@ -58,7 +59,12 @@ export async function GET(request: NextRequest) {
     // without crediting/reversing again.
   } else if (status === "1" && previousStatus === null) {
     // First time seeing this transaction, and it's a genuine completion.
-    await adjustPoints(userId, amount);
+    const offerId = rawOfferId ? `cpx-${rawOfferId}` : null;
+    if (offerId) {
+      await markOfferComplete(userId, offerId, amount);
+    } else {
+      await adjustPoints(userId, amount);
+    }
   } else if (status === "2" && previousStatus === "1") {
     // A previously-credited transaction is now being reversed.
     await adjustPoints(userId, -amount);

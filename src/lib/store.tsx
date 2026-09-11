@@ -121,6 +121,7 @@ interface AppContextValue {
     rewardImage: string,
     pointsCost: number
   ) => Promise<boolean>;
+  refreshUserData: () => Promise<void>;
   showToast: (message: string, type: ToastType) => void;
   removeToast: (id: string) => void;
 }
@@ -231,6 +232,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [showToast]
   );
 
+  const refreshUserData = useCallback(async () => {
+    const response = await fetch("/api/user/me", { cache: "no-store" });
+    if (!response.ok) return;
+
+    const data = await response.json();
+    dispatch({ type: "SET_POINTS", payload: data.points ?? 0 });
+  }, []);
+
   const removeToast = useCallback((id: string) => {
     dispatch({ type: "REMOVE_TOAST", payload: id });
   }, []);
@@ -244,6 +253,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         login,
         logout,
         redeemReward,
+        refreshUserData,
         showToast,
         removeToast,
       }}

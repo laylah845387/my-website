@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adjustPoints, markAffikeTransaction } from "@/lib/user-data";
+import { adjustPoints, markAffikeTransaction, markOfferComplete } from "@/lib/user-data";
 
 /**
  * Affike S2S Postback receiver.
@@ -108,5 +108,8 @@ export async function GET(request: NextRequest) {
   }
 
   await adjustPoints(userId, points);
+  if (offerId) {
+    await markOfferComplete(userId, `affike-${offerId}`, 0);
+  }
   return NextResponse.json({ status: "ok", offerId, txnId });
 }

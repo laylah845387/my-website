@@ -34,5 +34,5 @@ export async function GET(request: NextRequest) {
   const completedSet = new Set(completedIds);
   const visibleOffers = allOffers.filter((offer) => !completedSet.has(offer.id));
 
-  return NextResponse.json({ offers: visibleOffers });
+  return NextResponse.json({ offers: visibleOffers, completedOffers: completedIds });
 }

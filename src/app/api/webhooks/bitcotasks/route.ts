@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { getRedis } from "@/lib/redis";
-import { adjustPoints } from "@/lib/user-data";
+import { markOfferComplete, adjustPoints } from "@/lib/user-data";
 
 /**
  * BitcoTasks S2S Postback receiver.
@@ -66,6 +66,7 @@ async function handlePostback(request: NextRequest): Promise<NextResponse> {
   const reward = params.get("reward");
   const status = params.get("status");
   const signature = params.get("signature");
+  const offerId = params.get("offerId") || params.get("offer_id") || params.get("offer");
 
   if (!subId || !transId || !reward || !signature) {
     return new NextResponse("ERROR: Missing parameters", { status: 200 });
@@ -89,7 +90,13 @@ async function handlePostback(request: NextRequest): Promise<NextResponse> {
   const rewardAmount = Math.round(parseFloat(reward)) || 0;
   const isChargeback = status === "2";
 
-  await adjustPoints(subId, isChargeback ? -rewardAmount : rewardAmount);
+  if (isChargeback) {
+    await adjustPoints(subId, -rewardAmount);
+  } else if (offerId) {
+    await markOfferComplete(subId, offerId, rewardAmount);
+  } else {
+    await adjustPoints(subId, rewardAmount);
+  }
 
   // Must be exactly "ok" (lowercase, nothing else) or BitcoTasks marks
   // this postback as failed and resends it later.

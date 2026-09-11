@@ -14,7 +14,7 @@ import { History } from "lucide-react";
 
 export default function EarnPage() {
   const router = useRouter();
-  const { session, login, showToast } = useApp();
+  const { session, login, refreshUserData, showToast } = useApp();
   const [offers, setOffers] = useState<Offer[]>([]);
   // Tracks which currently-visible offers should show the "completed"
   // label — this is intentionally separate from the account's full
@@ -23,6 +23,7 @@ export default function EarnPage() {
   const [visibleCompleted, setVisibleCompleted] = useState<string[]>([]);
   const [offersLoading, setOffersLoading] = useState(true);
   const [redirectNoticeOpen, setRedirectNoticeOpen] = useState(false);
+  const [pendingOfferId, setPendingOfferId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,6 +52,39 @@ export default function EarnPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!redirectNoticeOpen || !pendingOfferId) return;
+
+    let cancelled = false;
+    const checkCompletion = async () => {
+      try {
+        const res = await fetch(
+          `/api/offers/status?offerId=${encodeURIComponent(pendingOfferId)}`,
+          { cache: "no-store" }
+        );
+        if (!res.ok || cancelled) return;
+
+        const data = await res.json();
+        if (data.completed) {
+          setVisibleCompleted((current) => [...new Set([...current, pendingOfferId])]);
+          setRedirectNoticeOpen(false);
+          setPendingOfferId(null);
+          await refreshUserData();
+          showToast("Offer completed. Your points have been added.", "success");
+        }
+      } catch {
+        // The next poll will retry while the provider processes the offer.
+      }
+    };
+
+    checkCompletion();
+    const intervalId = window.setInterval(checkCompletion, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [pendingOfferId, redirectNoticeOpen, refreshUserData, showToast]);
 
   const handleSelectOffer = async (offer: Offer) => {
     if (!session) {
@@ -84,6 +118,7 @@ export default function EarnPage() {
         // ever credited by the provider's own postback webhook once the
         // task is actually verified — never by anything happening here.
         window.open(data.redirectUrl, "_blank", "noopener,noreferrer");
+        setPendingOfferId(offer.id);
         setRedirectNoticeOpen(true);
         return;
       }
