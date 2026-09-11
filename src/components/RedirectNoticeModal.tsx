@@ -22,7 +22,7 @@ export default function RedirectNoticeModal({ isOpen, onClose }: RedirectNoticeM
           You are being redirected to a new window to complete your offer.
         </p>
         <p className="text-[12px] text-text-secondary mt-3">
-          When you have completed your offer, return back here to receive your
+          When you have finished the offer, return back here to receive your
           points. Points are only rewarded for fully completed offers. Some
           offers may require you to sign up for a subscription or download an
           app.
