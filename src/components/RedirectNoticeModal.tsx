@@ -14,11 +14,25 @@ export default function RedirectNoticeModal({ isOpen, onClose }: RedirectNoticeM
   // tabbed back in early, or minutes later after finishing the offer —
   // there's no reason to make them click through it. Auto-dismiss on
   // return instead of requiring "Got it".
+  //
+  // GRACE PERIOD: some providers (Affike in particular) redirect through
+  // a short chain of hops before landing on the real destination, and
+  // that can cause a brief, spurious "focus" flicker back to this tab
+  // in the first moment or two — which would otherwise auto-close the
+  // popup before the person ever consciously sees it. So we ignore
+  // focus/visibility events for a short window right after opening, and
+  // only start treating them as a genuine "they're back" signal after
+  // that.
   useEffect(() => {
     if (!isOpen) return;
 
+    let readyToClose = false;
+    const graceTimer = setTimeout(() => {
+      readyToClose = true;
+    }, 1500);
+
     const handleReturn = () => {
-      if (document.visibilityState === "visible") {
+      if (readyToClose && document.visibilityState === "visible") {
         onClose();
       }
     };
@@ -27,6 +41,7 @@ export default function RedirectNoticeModal({ isOpen, onClose }: RedirectNoticeM
     document.addEventListener("visibilitychange", handleReturn);
 
     return () => {
+      clearTimeout(graceTimer);
       window.removeEventListener("focus", handleReturn);
       document.removeEventListener("visibilitychange", handleReturn);
     };
