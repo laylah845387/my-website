@@ -1,5 +1,7 @@
 "use client";
 
+import { Gift } from "lucide-react";
+
 interface RedirectNoticeModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -18,6 +20,9 @@ export default function RedirectNoticeModal({ isOpen, onClose }: RedirectNoticeM
         className="relative w-full max-w-[420px] bg-bg-card border border-border rounded-2xl shadow-2xl animate-scale-in px-6 pt-8 pb-6 text-center"
         style={{ animation: "scaleIn 0.2s ease-out" }}
       >
+        <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-accent-green/10 text-accent-green">
+          <Gift size={24} strokeWidth={1.8} aria-hidden="true" />
+        </div>
         <p className="text-[15px] font-semibold text-text-primary leading-relaxed">
           You are being redirected to a new window to complete your offer.
         </p>
