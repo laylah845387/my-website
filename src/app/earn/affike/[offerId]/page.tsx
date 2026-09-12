@@ -99,6 +99,10 @@ export default function AffikeOfferPage() {
   }
 
   const milestones = offer.milestones ?? [];
+  const instructionText =
+    offer.description && offer.description.trim()
+      ? offer.description
+      : "Complete the required action outside of this site, such as downloading the app, signing up, or reaching the required in-app milestone. Once it is finished and verified, return here to receive your reward.";
 
   return (
     <PageContainer>
@@ -135,21 +139,19 @@ export default function AffikeOfferPage() {
           </div>
 
           <div className="space-y-8 px-6 py-7 sm:px-8">
-            {offer.description && (
-              <div>
-                <div className="mb-3 flex items-center gap-2 text-text-primary">
-                  <ListChecks size={16} className="text-accent-green" />
-                  <h2 className="text-xs font-bold uppercase tracking-[0.12em]">How to complete it</h2>
-                </div>
-                <p className="text-sm leading-6 text-text-secondary">{offer.description}</p>
+            <div>
+              <div className="mb-3 flex items-center gap-2 text-text-primary">
+                <ListChecks size={16} className="text-accent-green" />
+                <h2 className="text-xs font-bold uppercase tracking-[0.12em]">Offer Description</h2>
               </div>
-            )}
+              <p className="text-sm leading-6 text-text-secondary">{instructionText}</p>
+            </div>
 
             <div>
               <div className="mb-3 flex items-center gap-2 text-text-primary">
                 <CheckCircle2 size={16} className="text-accent-green" />
                 <h2 className="text-xs font-bold uppercase tracking-[0.12em]">
-                  Milestones and rewards
+                  Steps to complete & rewards
                 </h2>
               </div>
               {milestones.length > 0 ? (
@@ -168,7 +170,7 @@ export default function AffikeOfferPage() {
                 </div>
               ) : (
                 <p className="border-y border-border py-4 text-sm leading-6 text-text-secondary">
-                  Follow the instructions provided after opening the offer. Your points are awarded when Affike verifies completion.
+                  Complete the action shown in the offer outside of this site. Once the task is verified, the points for that step will be added to your balance.
                 </p>
               )}
             </div>
