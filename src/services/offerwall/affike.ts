@@ -168,6 +168,7 @@ export class AffikeProvider implements OfferwallProvider {
       const rawOffers = (data.offers || []).filter((offer) => {
         if (!offer?.id || !offer?.name) return false;
         if (Number.isFinite(offer.points) && Number(offer.points) <= 0) return false;
+        if ((offer.conversionEvents || []).length !== 1) return false;
         return true;
       });
       const filtered = allowedIds

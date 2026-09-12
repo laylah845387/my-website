@@ -10,7 +10,7 @@ import OfferGrid from "@/components/OfferGrid";
 import LoadingState from "@/components/LoadingState";
 import EmptyState from "@/components/EmptyState";
 import RedirectNoticeModal from "@/components/RedirectNoticeModal";
-import { History } from "lucide-react";
+import { Clock, History } from "lucide-react";
 
 export default function EarnPage() {
   const router = useRouter();
@@ -21,7 +21,6 @@ export default function EarnPage() {
   // lifetime completed-offers history, since already-acknowledged
   // completions get dropped from the list entirely (see /api/offers).
   const [visibleCompleted, setVisibleCompleted] = useState<string[]>([]);
-  const [inProgressOffers, setInProgressOffers] = useState<Record<string, string[]>>({});
   const [offersLoading, setOffersLoading] = useState(true);
   const [redirectNoticeOpen, setRedirectNoticeOpen] = useState(false);
   const [pendingOfferId, setPendingOfferId] = useState<string | null>(null);
@@ -29,15 +28,12 @@ export default function EarnPage() {
   useEffect(() => {
     let cancelled = false;
 
-    Promise.all([
-      fetch("/api/offers", { cache: "no-store" }).then((res) => res.json()),
-      fetch("/api/offers/progress", { cache: "no-store" }).then((res) => res.json()),
-    ])
-      .then(([offersData, progressData]) => {
+    fetch("/api/offers", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((offersData) => {
         if (!cancelled) {
           setOffers(offersData.offers ?? []);
           setVisibleCompleted(offersData.completedOffers ?? []);
-          setInProgressOffers(progressData.progress ?? {});
         }
       })
       .catch(() => {
@@ -90,27 +86,6 @@ export default function EarnPage() {
     };
   }, [pendingOfferId, redirectNoticeOpen, refreshUserData, showToast]);
 
-  const continueOffers = offers.filter((offer) => (inProgressOffers[offer.id] ?? []).length > 0);
-  const newOffers = offers.filter((offer) => (inProgressOffers[offer.id] ?? []).length === 0);
-
-  const renderOfferSection = (title: string, items: Offer[]) => {
-    if (items.length === 0) return null;
-
-    return (
-      <div className="mb-8">
-        <h2 className="mb-4 text-[11px] font-bold uppercase tracking-[0.14em] text-text-secondary">
-          {title}
-        </h2>
-        <OfferGrid
-          offers={items}
-          completedOffers={visibleCompleted}
-          activeOfferId={redirectNoticeOpen ? pendingOfferId : null}
-          onSelectOffer={handleSelectOffer}
-        />
-      </div>
-    );
-  };
-
   const handleSelectOffer = async (offer: Offer) => {
     if (!session) {
       login();
@@ -122,12 +97,12 @@ export default function EarnPage() {
       return;
     }
 
-    showToast(`Starting task: ${offer.title || offer.duration}...`, "info");
+    if (offer.provider === "affike") {
+      router.push(`/earn/affike/${encodeURIComponent(offer.id)}`);
+      return;
+    }
 
-      if (offer.provider === "affike") {
-        router.push(`/earn/affike/${encodeURIComponent(offer.id)}`);
-        return;
-      }
+    showToast(`Starting task: ${offer.title || offer.duration}...`, "info");
 
     try {
       const res = await fetch("/api/offers/start", {
@@ -203,8 +178,26 @@ export default function EarnPage() {
         />
       ) : (
         <>
-          {renderOfferSection("Continue", continueOffers)}
-          {renderOfferSection("New", newOffers)}
+          <section className="mb-8">
+            <h2 className="mb-4 text-[11px] font-bold uppercase tracking-[0.14em] text-text-secondary">
+              Continue
+            </h2>
+            <div className="flex flex-col items-center justify-center gap-3 border-y border-border py-10">
+              <Clock size={28} className="text-text-muted" aria-hidden="true" />
+              <p className="text-[13px] text-text-muted">Choose an offer to get started.</p>
+            </div>
+          </section>
+          <section>
+            <h2 className="mb-4 text-[11px] font-bold uppercase tracking-[0.14em] text-text-secondary">
+              New
+            </h2>
+            <OfferGrid
+              offers={offers}
+              completedOffers={visibleCompleted}
+              activeOfferId={redirectNoticeOpen ? pendingOfferId : null}
+              onSelectOffer={handleSelectOffer}
+            />
+          </section>
         </>
       )}
 

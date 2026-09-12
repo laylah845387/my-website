@@ -13,7 +13,6 @@ export default function AffikeOfferPage() {
   const params = useParams<{ offerId: string }>();
   const { session, login, showToast } = useApp();
   const [offer, setOffer] = useState<Offer | null>(null);
-  const [progress, setProgress] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
 
@@ -22,17 +21,11 @@ export default function AffikeOfferPage() {
     if (!offerId) return;
 
     let cancelled = false;
-    Promise.all([
-      fetch("/api/offers", { cache: "no-store" }).then((response) => response.json()),
-      fetch(`/api/offers/progress?offerId=${encodeURIComponent(offerId)}`, {
-        cache: "no-store",
-      }).then((response) => response.json()),
-    ])
-      .then(([offersData, progressData]) => {
+    fetch("/api/offers", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((data) => {
         if (!cancelled) {
-          const nextOffer = (offersData.offers ?? []).find((item: Offer) => item.id === offerId) ?? null;
-          setOffer(nextOffer);
-          setProgress(progressData.progress ?? []);
+          setOffer((data.offers ?? []).find((item: Offer) => item.id === offerId) ?? null);
         }
       })
       .catch(() => {
@@ -54,7 +47,9 @@ export default function AffikeOfferPage() {
       return;
     }
 
+    showToast(`Starting task: ${offer.title || offer.duration}...`, "info");
     setStarting(true);
+
     try {
       const response = await fetch("/api/offers/start", {
         method: "POST",
@@ -70,7 +65,6 @@ export default function AffikeOfferPage() {
       const data = await response.json();
       if (data.redirectUrl) {
         window.open(data.redirectUrl, "_blank", "noopener,noreferrer");
-        showToast("Offer opened in a new tab. Complete the milestones to earn points.", "info");
       } else {
         showToast("Couldn't start this offer right now. Please try again in a moment.", "error");
       }
@@ -106,10 +100,8 @@ export default function AffikeOfferPage() {
   }
 
   const milestones = offer.milestones ?? [];
-  const instructionText =
-    offer.description && offer.description.trim()
-      ? offer.description
-      : "Complete the required action outside of this site, such as downloading the app, signing up, or reaching the required in-app milestone. Once it is finished and verified, return here to receive your reward.";
+  const instructionText = offer.description?.trim() ||
+    "Complete the required action outside of this site. Once it is finished and verified, the points for that step will be added to your balance.";
 
   return (
     <PageContainer>
@@ -163,31 +155,16 @@ export default function AffikeOfferPage() {
               </div>
               {milestones.length > 0 ? (
                 <div className="divide-y divide-border border-y border-border">
-                  {milestones.map((milestone, index) => {
-                    const checked = progress.includes(String(milestone.id));
-
-                    return (
-                      <div key={milestone.id || index} className="flex items-center justify-between gap-5 py-4">
-                        <div className="flex min-w-0 items-start gap-3">
-                          <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-green/70" />
-                          <p
-                            className={`text-sm leading-5 transition-colors ${
-                              checked
-                                ? "text-text-muted line-through decoration-accent-green/70 decoration-2"
-                                : "text-text-primary"
-                            }`}
-                          >
-                            {milestone.action}
-                          </p>
-                        </div>
-                        <p className="shrink-0 text-sm font-bold text-accent-green">+{milestone.points}</p>
-                      </div>
-                    );
-                  })}
+                  {milestones.map((milestone, index) => (
+                    <div key={milestone.id || index} className="flex items-center justify-between gap-5 py-4">
+                      <p className="min-w-0 text-sm leading-5 text-text-primary">{milestone.action}</p>
+                      <p className="shrink-0 text-sm font-bold text-accent-green">+{milestone.points}</p>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <p className="border-y border-border py-4 text-sm leading-6 text-text-secondary">
-                  Complete the action shown in the offer outside of this site. Once the task is verified, the points for that step will be added to your balance.
+                  Complete the action shown in the offer outside of this site. Once the task is verified, the points will be added to your balance.
                 </p>
               )}
             </div>
