@@ -28,9 +28,7 @@ export default function RedirectNoticeModal({ isOpen, onClose }: RedirectNoticeM
         </p>
         <p className="text-[12px] text-text-secondary mt-3">
           When you have finished the offer, return back here to receive your
-          points. Points are only rewarded for fully completed offers. Some
-          offers may require you to sign up for a subscription or download an
-          app.
+          points. Points are only rewarded for fully completed offers.
         </p>
 
         <button

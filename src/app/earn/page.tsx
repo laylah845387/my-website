@@ -182,7 +182,7 @@ export default function EarnPage() {
             <h2 className="mb-4 text-[11px] font-bold uppercase tracking-[0.14em] text-text-secondary">
               Continue
             </h2>
-            <div className="flex flex-col items-center justify-center gap-3 border-y border-border py-10">
+            <div className="flex flex-col items-center justify-center gap-3 py-10">
               <Clock size={28} className="text-text-muted" aria-hidden="true" />
               <p className="text-[13px] text-text-muted">Choose an offer to get started.</p>
             </div>
