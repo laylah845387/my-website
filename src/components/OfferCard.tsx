@@ -7,9 +7,10 @@ interface OfferCardProps {
   offer: Offer;
   onSelect: (offer: Offer) => void;
   completed?: boolean;
+  active?: boolean;
 }
 
-export default function OfferCard({ offer, onSelect, completed }: OfferCardProps) {
+export default function OfferCard({ offer, onSelect, completed, active }: OfferCardProps) {
   return (
     <button
       onClick={() => onSelect(offer)}
@@ -17,7 +18,9 @@ export default function OfferCard({ offer, onSelect, completed }: OfferCardProps
       className={`group relative flex flex-col items-center justify-center gap-3 p-5 rounded-lg border transition-all duration-200 text-center ${
         completed
           ? "bg-bg-card border-border opacity-50 cursor-not-allowed"
-          : "bg-bg-card border-border hover:border-accent-green/40 hover:bg-bg-card-hover cursor-pointer"
+          : active
+            ? "bg-bg-card border-accent-green shadow-[0_0_0_1px_rgba(74,222,128,0.5)] hover:border-accent-green/60 hover:bg-bg-card-hover cursor-pointer"
+            : "bg-bg-card border-border hover:border-accent-green/40 hover:bg-bg-card-hover cursor-pointer"
       }`}
     >
       {/* 1. Type */}

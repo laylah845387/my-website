@@ -34,6 +34,54 @@ export async function getCompletedOffers(discordId: string): Promise<string[]> {
   return members ?? [];
 }
 
+function offerProgressKey(discordId: string, offerId: string) {
+  return `user:${discordId}:offer-progress:${offerId}`;
+}
+
+export async function getOfferProgress(discordId: string, offerId: string): Promise<string[]> {
+  const redis = getRedis();
+  const members = await redis.smembers(offerProgressKey(discordId, offerId));
+  return members ?? [];
+}
+
+export async function getUserOfferProgress(discordId: string): Promise<Record<string, string[]>> {
+  const redis = getRedis();
+  const keys = await redis.keys(`user:${discordId}:offer-progress:*`);
+  const progress: Record<string, string[]> = {};
+
+  for (const key of keys) {
+    const offerId = key.replace(`user:${discordId}:offer-progress:`, "");
+    progress[offerId] = (await redis.smembers(key)) ?? [];
+  }
+
+  return progress;
+}
+
+export async function toggleOfferMilestone(
+  discordId: string,
+  offerId: string,
+  milestoneId: string,
+  points: number,
+  completed: boolean
+): Promise<{ points: number; completedMilestones: string[] }> {
+  const redis = getRedis();
+  const key = offerProgressKey(discordId, offerId);
+  const current = new Set((await redis.smembers(key)) ?? []);
+
+  if (completed && !current.has(milestoneId)) {
+    await redis.sadd(key, milestoneId);
+    await adjustPoints(discordId, points);
+  }
+
+  if (!completed && current.has(milestoneId)) {
+    await redis.srem(key, milestoneId);
+    await adjustPoints(discordId, -points);
+  }
+
+  const updated = (await redis.smembers(key)) ?? [];
+  return { points: await getPoints(discordId), completedMilestones: updated };
+}
+
 export async function getOrders(discordId: string): Promise<Order[]> {
   const redis = getRedis();
   const raw = await redis.lrange<Order>(ordersKey(discordId), 0, 49);

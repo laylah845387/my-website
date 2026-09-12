@@ -6,12 +6,14 @@ import OfferCard from "./OfferCard";
 interface OfferGridProps {
   offers: Offer[];
   completedOffers: string[];
+  activeOfferId?: string | null;
   onSelectOffer: (offer: Offer) => void;
 }
 
 export default function OfferGrid({
   offers,
   completedOffers,
+  activeOfferId,
   onSelectOffer,
 }: OfferGridProps) {
   return (
@@ -22,6 +24,7 @@ export default function OfferGrid({
           offer={offer}
           onSelect={onSelectOffer}
           completed={completedOffers.includes(offer.id)}
+          active={Boolean(activeOfferId && activeOfferId === offer.id)}
         />
       ))}
     </div>
