@@ -106,7 +106,9 @@ export class CpxResearchProvider implements OfferwallProvider {
       const data: CpxResponse = await res.json();
       if (data.status !== "success") return [];
 
-      return (data.surveys || []).map(toOffer);
+      return (data.surveys || [])
+        .filter((survey) => survey && survey.id && (Number(survey.payout) || 0) > 0)
+        .map(toOffer);
     } catch {
       return [];
     }

@@ -123,7 +123,7 @@ export default function AffikeOfferPage() {
             <div className="flex flex-wrap items-start justify-between gap-5">
               <div>
                 <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-text-secondary">
-                  Affike offer
+                  {offer.type || "Offer"}
                 </p>
                 <h1 className="font-heading text-3xl font-bold uppercase leading-tight text-text-primary">
                   {offer.title || "Complete this offer"}

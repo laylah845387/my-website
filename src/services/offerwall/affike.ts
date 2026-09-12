@@ -73,6 +73,24 @@ function buildOffersUrl(apiKey: string): string {
   return `https://affike.com/api/offerwall/offers?${params.toString()}`;
 }
 
+function normalizeAffikeType(category?: string): string {
+  const raw = (category || "").toLowerCase();
+
+  if (!raw) return "Offer";
+  if (/(app|download|install|game|mobile)/.test(raw)) return "App Download";
+  if (/(subscription|trial|renew|membership)/.test(raw)) return "Subscription";
+  if (/(signup|sign up|register|account)/.test(raw)) return "Sign Up";
+  if (/(survey|questionnaire)/.test(raw)) return "Survey";
+  if (/(freebie|cashback|reward)/.test(raw)) return "Reward";
+  if (/(lead|web|visit|landing)/.test(raw)) return "Lead";
+
+  return raw
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ") || "Offer";
+}
+
 function toOffer(raw: AffikeRawOffer): Offer {
   const points = Math.max(0, Math.round(raw.points || 0));
   const steps = raw.conversionEvents?.length;
@@ -84,9 +102,7 @@ function toOffer(raw: AffikeRawOffer): Offer {
 
   return {
     id: `affike-${raw.id}`,
-    type: raw.category
-      ? raw.category.toUpperCase()
-      : "OFFER",
+    type: normalizeAffikeType(raw.category),
     duration: steps
       ? `${steps} STEP${steps > 1 ? "S" : ""}`
       : "VARIES",
@@ -144,10 +160,14 @@ export class AffikeProvider implements OfferwallProvider {
       const data: AffikeResponse = await res.json();
 
       const allowedIds = getAllowedOfferIds();
-      const rawOffers = data.offers || [];
+      const rawOffers = (data.offers || []).filter((offer) => {
+        if (!offer?.id || !offer?.name) return false;
+        if (Number.isFinite(offer.points) && Number(offer.points) <= 0) return false;
+        return true;
+      });
       const filtered = allowedIds
         ? rawOffers.filter((o) => allowedIds.has(String(o.id)))
-        : [];
+        : rawOffers;
 
       if (!allowedIds) {
         console.warn(

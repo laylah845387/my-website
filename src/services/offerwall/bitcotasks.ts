@@ -104,7 +104,9 @@ export class BitcotasksProvider implements OfferwallProvider {
           const data: BitcotasksResponse = await res.json();
           if (String(data.status) !== "200") return [];
 
-          return (data.data || []).map((raw) => toOffer(raw, category));
+          return (data.data || [])
+            .filter((raw) => raw && raw.id && raw.title && (Number.parseFloat(raw.reward) || 0) > 0)
+            .map((raw) => toOffer(raw, category));
         } catch {
           return [];
         }
