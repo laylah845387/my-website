@@ -11,7 +11,7 @@ import LoadingState from "@/components/LoadingState";
 export default function AffikeOfferPage() {
   const router = useRouter();
   const params = useParams<{ offerId: string }>();
-  const { session, login, refreshUserData, showToast } = useApp();
+  const { session, login, showToast } = useApp();
   const [offer, setOffer] = useState<Offer | null>(null);
   const [progress, setProgress] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,41 +78,6 @@ export default function AffikeOfferPage() {
       showToast("Couldn't start this offer right now. Please try again in a moment.", "error");
     } finally {
       setStarting(false);
-    }
-  };
-
-  const toggleMilestone = async (milestoneId: string, milestonePoints: number, completed: boolean) => {
-    if (!offer || !session) {
-      login();
-      return;
-    }
-
-    try {
-      const response = await fetch("/api/offers/progress", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          offerId: offer.id,
-          milestoneId,
-          points: milestonePoints,
-          completed,
-        }),
-      });
-
-      if (!response.ok) {
-        showToast("Couldn't update your progress right now.", "error");
-        return;
-      }
-
-      const data = await response.json();
-      setProgress(data.completedMilestones ?? []);
-      await refreshUserData();
-      showToast(
-        completed ? "Milestone marked complete." : "Milestone unchecked.",
-        completed ? "success" : "info"
-      );
-    } catch {
-      showToast("Couldn't update your progress right now.", "error");
     }
   };
 
@@ -202,26 +167,18 @@ export default function AffikeOfferPage() {
                     const checked = progress.includes(String(milestone.id));
 
                     return (
-                      <div
-                        key={milestone.id || index}
-                        className={`flex items-center justify-between gap-5 py-4 ${
-                          checked ? "opacity-100" : "opacity-90"
-                        }`}
-                      >
+                      <div key={milestone.id || index} className="flex items-center justify-between gap-5 py-4">
                         <div className="flex min-w-0 items-start gap-3">
-                          <button
-                            type="button"
-                            onClick={() => toggleMilestone(String(milestone.id), milestone.points, !checked)}
-                            className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                          <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-green/70" />
+                          <p
+                            className={`text-sm leading-5 transition-colors ${
                               checked
-                                ? "border-accent-green bg-accent-green text-bg"
-                                : "border-border bg-bg-elevated text-text-muted hover:border-accent-green/60"
+                                ? "text-text-muted line-through decoration-accent-green/70 decoration-2"
+                                : "text-text-primary"
                             }`}
-                            aria-label={checked ? "Unmark milestone as complete" : "Mark milestone as complete"}
                           >
-                            {checked ? "✓" : ""}
-                          </button>
-                          <p className="text-sm leading-5 text-text-primary">{milestone.action}</p>
+                            {milestone.action}
+                          </p>
                         </div>
                         <p className="shrink-0 text-sm font-bold text-accent-green">+{milestone.points}</p>
                       </div>

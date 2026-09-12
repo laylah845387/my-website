@@ -92,13 +92,18 @@ function normalizeAffikeType(category?: string): string {
 }
 
 function toOffer(raw: AffikeRawOffer): Offer {
-  const points = Math.max(0, Math.round(raw.points || 0));
   const steps = raw.conversionEvents?.length;
-  const milestones: OfferMilestone[] = (raw.conversionEvents || []).map((event) => ({
-    id: String(event.id),
-    action: event.action,
-    points: Math.max(0, Math.round(event.points || 0)),
-  }));
+  const milestones: OfferMilestone[] = (raw.conversionEvents || [])
+    .map((event) => ({
+      id: String(event.id),
+      action: event.action,
+      points: Math.max(0, Math.round(event.points || 0)),
+    }))
+    .sort((first, second) => first.points - second.points);
+  const milestoneTotal = milestones.reduce((total, milestone) => total + milestone.points, 0);
+  const points = milestones.length > 0
+    ? milestoneTotal
+    : Math.max(0, Math.round(raw.points || 0));
 
   return {
     id: `affike-${raw.id}`,
