@@ -99,6 +99,11 @@ export default function EarnPage() {
 
     showToast(`Starting task: ${offer.title || offer.duration}...`, "info");
 
+      if (offer.provider === "affike") {
+        router.push(`/earn/affike/${encodeURIComponent(offer.id)}`);
+        return;
+      }
+
     try {
       const res = await fetch("/api/offers/start", {
         method: "POST",

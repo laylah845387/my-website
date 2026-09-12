@@ -26,6 +26,13 @@ export type Offer = {
   description?: string;
   provider?: string;
   url?: string;
+  milestones?: OfferMilestone[];
+};
+
+export type OfferMilestone = {
+  id: string;
+  action: string;
+  points: number;
 };
 
 export type Order = {
