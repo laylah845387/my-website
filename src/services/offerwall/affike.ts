@@ -1,5 +1,6 @@
 import { Offer, OfferMilestone } from "@/types";
 import { OfferwallProvider } from "./types";
+import { getCountryForIp } from "@/lib/geo";
 
 interface AffikeConversionEvent {
   id: string;
@@ -63,6 +64,17 @@ function getAllowedOfferIds(): Set<string> {
     .map((id) => id.trim())
     .filter(Boolean);
   return new Set(ids);
+}
+
+// Fallback only for when a visitor's country genuinely can't be
+// determined (lookup failure, local dev, etc.) — NOT the default path.
+// Real filtering uses the visitor's actual detected country; when that's
+// unknown, unrestricted offers still show, and this env var (if set)
+// additionally allows region-restricted offers matching it too. Leave
+// unset to just show unrestricted-only offers when detection fails.
+function getFallbackCountry(): string | null {
+  const raw = process.env.AFFIKE_TARGET_COUNTRY;
+  return raw ? raw.toUpperCase() : null;
 }
 
 function buildOffersUrl(apiKey: string): string {
@@ -132,7 +144,7 @@ export class AffikeProvider implements OfferwallProvider {
 
   async getOffers(
     _userId?: string,
-    _userIp?: string
+    userIp?: string
   ): Promise<Offer[]> {
     const apiKey = getApiKey();
 
@@ -165,61 +177,80 @@ export class AffikeProvider implements OfferwallProvider {
       const data: AffikeResponse = await res.json();
 
       const allowedIds = getAllowedOfferIds();
-      const rawOffers = (data.offers || []).filter((offer) => {
-        if (!offer?.id || !offer?.name) return false;
-        if (Number.isFinite(offer.points) && Number(offer.points) <= 0) return false;
-        return true;
-      });
-      const filtered = rawOffers.filter((o) => allowedIds.has(String(o.id)));
+      const visitorCountry = await getCountryForIp(userIp);
+      const effectiveCountry = visitorCountry || getFallbackCountry();
 
-      // Affike only ever tells us when a whole offer is fully verified
-      // complete — there's no per-step signal for multi-step offers, so
-      // we can't legitimately show step-by-step progress for them. Only
-      // single-step offers get shown; any configured ID that turns out
-      // to have more than one step is logged (same pattern as the
-      // expired/missing diagnostics below) so you know to remove it from
-      // AFFIKE_ACTIVATED_OFFER_IDS.
-      const singleStep = filtered.filter((o) => {
-        const steps = o.conversionEvents?.length ?? 1;
-        if (steps > 1) {
-          console.warn(
-            `[Affike] Configured offer ID ${o.id} ("${o.name}") has ${steps} steps — skipping since individual steps can't be tracked. Remove it from AFFIKE_ACTIVATED_OFFER_IDS.`
-          );
-          return false;
-        }
-        return true;
-      });
+      const passesQuality = (offer: AffikeRawOffer) =>
+        !!offer?.id &&
+        !!offer?.name &&
+        !(Number.isFinite(offer.points) && Number(offer.points) <= 0);
+
+      const passesRegion = (offer: AffikeRawOffer) =>
+        !offer.countries ||
+        offer.countries.length === 0 ||
+        (!!effectiveCountry && offer.countries.some((c) => c.toUpperCase() === effectiveCountry));
+
+      const passesSingleStep = (offer: AffikeRawOffer) =>
+        (offer.conversionEvents?.length ?? 1) <= 1;
+
+      const allowlisted = (data.offers || []).filter(
+        (o) => passesQuality(o) && allowedIds.has(String(o.id))
+      );
+      const inRegion = allowlisted.filter(passesRegion);
+      const finalOffers = inRegion.filter(passesSingleStep);
 
       if (allowedIds.size === 0) {
         console.warn(
           "[Affike] AFFIKE_ACTIVATED_OFFER_IDS is empty — showing zero Affike offers until you add activated offer IDs."
         );
       } else {
-        // Diagnose any configured ID that didn't make it into the final
-        // list, instead of silently dropping it — distinguishes "not in
-        // today's catalog at all" from "present but filtered out by the
-        // no-name/non-positive-points check above" (e.g. temporarily
-        // paused or zero-payout right now), so this doesn't need another
-        // guessing round next time an ID goes missing.
-        const foundIds = new Set(filtered.map((o) => String(o.id)));
+        // Diagnose every configured ID that didn't make it into the
+        // final list, in pipeline order, instead of silently dropping
+        // it — distinguishes "not in today's catalog at all" from
+        // "present but filtered out" and exactly which stage did it
+        // (quality check / wrong region / too many steps), so this
+        // doesn't need another guessing round next time an ID goes
+        // missing.
+        const finalIds = new Set(finalOffers.map((o) => String(o.id)));
         for (const id of allowedIds) {
-          if (foundIds.has(id)) continue;
+          if (finalIds.has(id)) continue;
+
           const rawMatch = (data.offers || []).find((o) => String(o?.id) === id);
           if (!rawMatch) {
             console.warn(
               `[Affike] Configured offer ID ${id} is not present in today's /api/offerwall/offers catalog at all — it may have expired or been rotated out on Affike's side.`
             );
-          } else {
+            continue;
+          }
+
+          if (!passesQuality(rawMatch)) {
             console.warn(
               `[Affike] Configured offer ID ${id} was filtered out — name=${JSON.stringify(
                 rawMatch.name
               )}, points=${JSON.stringify(rawMatch.points)}.`
             );
+            continue;
+          }
+
+          // Region mismatches aren't logged here on purpose — they're
+          // expected, per-visitor, and don't mean the offer ID itself is
+          // bad (it may work fine for visitors from a supported
+          // country), so they'd just be noise next to the genuine
+          // failure reasons below.
+          if (!passesRegion(rawMatch)) {
+            continue;
+          }
+
+          if (!passesSingleStep(rawMatch)) {
+            const steps = rawMatch.conversionEvents?.length ?? 1;
+            console.warn(
+              `[Affike] Configured offer ID ${id} ("${rawMatch.name}") has ${steps} steps — skipping since individual steps can't be tracked. Remove it from AFFIKE_ACTIVATED_OFFER_IDS.`
+            );
           }
         }
       }
 
-      return singleStep.map(toOffer);
+      return finalOffers.map(toOffer);
     } catch (error) {
       console.error(
         "[Affike] Failed to fetch offers:",
