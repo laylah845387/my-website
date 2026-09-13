@@ -14,6 +14,9 @@ function pointsKey(discordId: string) {
 function completedKey(discordId: string) {
   return `user:${discordId}:completed`;
 }
+function dismissedKey(discordId: string) {
+  return `user:${discordId}:dismissed`;
+}
 function ordersKey(discordId: string) {
   return `user:${discordId}:orders`;
 }
@@ -32,6 +35,21 @@ export async function getCompletedOffers(discordId: string): Promise<string[]> {
   const redis = getRedis();
   const members = await redis.smembers(completedKey(discordId));
   return members ?? [];
+}
+
+export async function getDismissedOffers(discordId: string): Promise<string[]> {
+  const redis = getRedis();
+  const members = await redis.smembers(dismissedKey(discordId));
+  return members ?? [];
+}
+
+export async function dismissOffer(discordId: string, offerId: string): Promise<boolean> {
+  const redis = getRedis();
+  const completed = await redis.sismember(completedKey(discordId), offerId);
+  if (completed) return false;
+
+  await redis.sadd(dismissedKey(discordId), offerId);
+  return true;
 }
 
 export async function getOrders(discordId: string): Promise<Order[]> {

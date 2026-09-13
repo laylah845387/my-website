@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 interface SurveyStatusFrameProps {
@@ -10,8 +10,7 @@ interface SurveyStatusFrameProps {
   messageId: string;
 }
 
-// How long to show CPX's own result message before moving on automatically.
-const AUTO_CONTINUE_SECONDS = 6;
+const CPX_RETURN_OFFER_KEY = "cpx-return-offer-id";
 
 export default function SurveyStatusFrame({
   appId,
@@ -20,8 +19,6 @@ export default function SurveyStatusFrame({
   messageId,
 }: SurveyStatusFrameProps) {
   const router = useRouter();
-  const [secondsLeft, setSecondsLeft] = useState(AUTO_CONTINUE_SECONDS);
-
   const frameUrl =
     `https://wall.cpx-research.com/index.php?app_id=${encodeURIComponent(appId)}` +
     `&ext_user_id=${encodeURIComponent(extUserId)}` +
@@ -30,13 +27,16 @@ export default function SurveyStatusFrame({
     `&message_id=${encodeURIComponent(messageId)}`;
 
   useEffect(() => {
-    if (secondsLeft <= 0) {
-      router.replace("/earn");
-      return;
-    }
-    const timer = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [secondsLeft, router]);
+    const offerId = window.localStorage.getItem(CPX_RETURN_OFFER_KEY);
+    if (!offerId) return;
+
+    window.localStorage.removeItem(CPX_RETURN_OFFER_KEY);
+    void fetch("/api/offers/dismiss", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ offerId }),
+    });
+  }, []);
 
   return (
     <div
@@ -48,22 +48,22 @@ export default function SurveyStatusFrame({
         justifyContent: "center",
         background: "var(--color-bg)",
         padding: "24px",
-        gap: "20px",
+        gap: "24px",
       }}
     >
       <div
         style={{
           width: "100%",
-          maxWidth: "480px",
+          maxWidth: "720px",
           textAlign: "center",
           color: "#fff",
         }}
       >
-        <h1 style={{ fontSize: "20px", fontWeight: 700, marginBottom: "8px" }}>
-          Survey result
+        <h1 style={{ fontSize: "24px", fontWeight: 700, marginBottom: "10px" }}>
+          Unfortunately, you were not a match for this survey.
         </h1>
-        <p style={{ color: "#999", fontSize: "14px", marginBottom: "20px" }}>
-          Taking you back to the Earn page in {secondsLeft}s...
+        <p style={{ color: "#999", fontSize: "14px", lineHeight: 1.6, marginBottom: "4px" }}>
+          Select another survey from our partner below to earn your points or return to view other available offers.
         </p>
       </div>
 
@@ -72,27 +72,19 @@ export default function SurveyStatusFrame({
         title="Survey result"
         style={{
           width: "100%",
-          maxWidth: "480px",
-          height: "420px",
+          maxWidth: "720px",
+          height: "620px",
           border: "none",
-          borderRadius: "12px",
+          borderRadius: "16px",
           background: "#1a1a1a",
         }}
       />
 
       <button
         onClick={() => router.replace("/earn")}
-        style={{
-          padding: "10px 24px",
-          borderRadius: "8px",
-          border: "none",
-          background: "var(--color-accent-green)",
-          color: "#000",
-          fontWeight: 600,
-          cursor: "pointer",
-        }}
+        className="h-10 w-full max-w-[720px] rounded-lg bg-accent-green px-5 text-[13px] font-bold uppercase tracking-[0.08em] text-bg transition-colors hover:bg-accent-green/90"
       >
-        Continue now
+        Return to Offers
       </button>
     </div>
   );

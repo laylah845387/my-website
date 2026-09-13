@@ -12,6 +12,8 @@ import EmptyState from "@/components/EmptyState";
 import RedirectNoticeModal from "@/components/RedirectNoticeModal";
 import { Clock, History } from "lucide-react";
 
+const CPX_RETURN_OFFER_KEY = "cpx-return-offer-id";
+
 export default function EarnPage() {
   const router = useRouter();
   const { session, login, refreshUserData, showToast } = useApp();
@@ -122,6 +124,9 @@ export default function EarnPage() {
         // Send the user to the real task in a new tab. Points are only
         // ever credited by the provider's own postback webhook once the
         // task is actually verified — never by anything happening here.
+        if (offer.provider === "cpx-research") {
+          window.localStorage.setItem(CPX_RETURN_OFFER_KEY, offer.id);
+        }
         window.open(data.redirectUrl, "_blank", "noopener,noreferrer");
         setPendingOfferId(offer.id);
         setRedirectNoticeOpen(true);

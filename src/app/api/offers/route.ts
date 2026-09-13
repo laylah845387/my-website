@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySessionCookie } from "@/lib/session";
 import { BitcotasksProvider, CpxResearchProvider, AffikeProvider } from "@/services/offerwall";
-import { getCompletedOffers } from "@/lib/user-data";
+import { getCompletedOffers, getDismissedOffers } from "@/lib/user-data";
 
 /**
  * GET /api/offers
@@ -30,9 +30,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ offers: allOffers });
   }
 
-  const completedIds = await getCompletedOffers(user.id);
-  const completedSet = new Set(completedIds);
-  const visibleOffers = allOffers.filter((offer) => !completedSet.has(offer.id));
+  const [completedIds, dismissedIds] = await Promise.all([
+    getCompletedOffers(user.id),
+    getDismissedOffers(user.id),
+  ]);
+  const unavailableSet = new Set([...completedIds, ...dismissedIds]);
+  const visibleOffers = allOffers.filter((offer) => !unavailableSet.has(offer.id));
 
   return NextResponse.json({ offers: visibleOffers, completedOffers: completedIds });
 }

@@ -12,9 +12,9 @@ import SurveyStatusFrame from "@/components/SurveyStatusFrame";
  * param. Per CPX's docs, the only reliable way to actually receive and
  * display that outcome — instead of the user sometimes ending up back on
  * CPX's own offerwall — is to embed their wall here with that message_id
- * attached. The user's browser never leaves our domain; this page just
- * briefly shows CPX's own result message inside a small embedded frame,
- * then sends them on to /earn.
+ * attached. The user's browser never leaves our domain; this page shows
+ * CPX's own result message inside an embedded frame and lets the user choose
+ * when to return to /earn.
  */
 export default async function SurveyStatusPage({
   searchParams,
