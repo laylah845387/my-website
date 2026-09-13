@@ -16,12 +16,15 @@ export async function GET(request: NextRequest) {
   const cookie = request.cookies.get("session")?.value;
   const user = verifySessionCookie(cookie);
   const userIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "0.0.0.0";
+  // Cloudflare sets this server-side when the site is proxied through it.
+  // Without the header, Affike country filtering fails open.
+  const userCountry = request.headers.get("cf-ipcountry")?.trim().toUpperCase();
   const userId = user?.id ?? "guest";
 
   const [bitcotasksOffers, cpxOffers, affikeOffers] = await Promise.all([
     new BitcotasksProvider().getOffers(userId, userIp),
     new CpxResearchProvider().getOffers(userId, userIp),
-    new AffikeProvider().getOffers(userId, userIp),
+    new AffikeProvider().getOffers(userId, userIp, userCountry),
   ]);
 
   const allOffers = [...bitcotasksOffers, ...cpxOffers, ...affikeOffers];

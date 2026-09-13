@@ -11,6 +11,7 @@ interface SurveyStatusFrameProps {
 }
 
 const CPX_RETURN_OFFER_KEY = "cpx-return-offer-id";
+const CPX_DISMISSED_OFFER_EVENT = "cpx-dismissed-offer-id";
 
 export default function SurveyStatusFrame({
   appId,
@@ -31,6 +32,7 @@ export default function SurveyStatusFrame({
     if (!offerId) return;
 
     window.localStorage.removeItem(CPX_RETURN_OFFER_KEY);
+    window.localStorage.setItem(CPX_DISMISSED_OFFER_EVENT, offerId);
     void fetch("/api/offers/dismiss", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -41,20 +43,20 @@ export default function SurveyStatusFrame({
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: "calc(100vh - 64px)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
         background: "var(--color-bg)",
-        padding: "24px",
-        gap: "24px",
+        padding: "12px 24px 24px",
+        gap: "20px",
       }}
     >
       <div
         style={{
           width: "100%",
-          maxWidth: "720px",
+          maxWidth: "680px",
           textAlign: "center",
           color: "#fff",
         }}
@@ -72,7 +74,7 @@ export default function SurveyStatusFrame({
         title="Survey result"
         style={{
           width: "100%",
-          maxWidth: "720px",
+          maxWidth: "680px",
           height: "620px",
           border: "none",
           borderRadius: "16px",
@@ -82,7 +84,7 @@ export default function SurveyStatusFrame({
 
       <button
         onClick={() => router.replace("/earn")}
-        className="h-10 w-full max-w-[720px] rounded-lg bg-accent-green px-5 text-[13px] font-bold uppercase tracking-[0.08em] text-bg transition-colors hover:bg-accent-green/90"
+        className="h-10 w-full max-w-[680px] rounded-lg bg-accent-green px-5 text-[13px] font-bold uppercase tracking-[0.08em] text-bg transition-colors hover:bg-accent-green/90"
       >
         Return to Offers
       </button>

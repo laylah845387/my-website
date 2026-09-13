@@ -13,6 +13,7 @@ import RedirectNoticeModal from "@/components/RedirectNoticeModal";
 import { Clock, History } from "lucide-react";
 
 const CPX_RETURN_OFFER_KEY = "cpx-return-offer-id";
+const CPX_DISMISSED_OFFER_EVENT = "cpx-dismissed-offer-id";
 
 export default function EarnPage() {
   const router = useRouter();
@@ -53,6 +54,21 @@ export default function EarnPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const handleDismissedOffer = (event: StorageEvent) => {
+      if (event.key !== CPX_DISMISSED_OFFER_EVENT || !event.newValue) return;
+
+      const offerId = event.newValue;
+      setOffers((current) => current.filter((offer) => offer.id !== offerId));
+      setVisibleCompleted((current) => current.filter((id) => id !== offerId));
+      setPendingOfferId((current) => (current === offerId ? null : current));
+      setRedirectNoticeOpen(false);
+    };
+
+    window.addEventListener("storage", handleDismissedOffer);
+    return () => window.removeEventListener("storage", handleDismissedOffer);
   }, []);
 
   useEffect(() => {
