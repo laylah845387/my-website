@@ -55,14 +55,14 @@ function getAffId(): string | null {
 // To add an offer: open it in Affike's dashboard, view/test its
 // tracking link once (this activates it), then add its numeric ID here
 // (comma-separated in the env var, e.g. "1225,1327,1340").
-function getAllowedOfferIds(): Set<string> | null {
+function getAllowedOfferIds(): Set<string> {
   const raw = process.env.AFFIKE_ACTIVATED_OFFER_IDS;
-  if (!raw) return null;
+  if (!raw) return new Set();
   const ids = raw
     .split(",")
     .map((id) => id.trim())
     .filter(Boolean);
-  return ids.length ? new Set(ids) : null;
+  return new Set(ids);
 }
 
 function buildOffersUrl(apiKey: string): string {
@@ -170,13 +170,11 @@ export class AffikeProvider implements OfferwallProvider {
         if (Number.isFinite(offer.points) && Number(offer.points) <= 0) return false;
         return true;
       });
-      const filtered = allowedIds
-        ? rawOffers.filter((o) => allowedIds.has(String(o.id)))
-        : rawOffers;
+      const filtered = rawOffers.filter((o) => allowedIds.has(String(o.id)));
 
-      if (!allowedIds) {
+      if (allowedIds.size === 0) {
         console.warn(
-          "[Affike] AFFIKE_ACTIVATED_OFFER_IDS is not set — showing zero Affike offers until you set it, since most offer IDs in the catalog aren't activated for click tracking yet. See the comment on getAllowedOfferIds() in this file."
+          "[Affike] AFFIKE_ACTIVATED_OFFER_IDS is empty — showing zero Affike offers until you add activated offer IDs."
         );
       }
 
