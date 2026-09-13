@@ -176,6 +176,29 @@ export class AffikeProvider implements OfferwallProvider {
         console.warn(
           "[Affike] AFFIKE_ACTIVATED_OFFER_IDS is empty — showing zero Affike offers until you add activated offer IDs."
         );
+      } else {
+        // Diagnose any configured ID that didn't make it into the final
+        // list, instead of silently dropping it — distinguishes "not in
+        // today's catalog at all" from "present but filtered out by the
+        // no-name/non-positive-points check above" (e.g. temporarily
+        // paused or zero-payout right now), so this doesn't need another
+        // guessing round next time an ID goes missing.
+        const foundIds = new Set(filtered.map((o) => String(o.id)));
+        for (const id of allowedIds) {
+          if (foundIds.has(id)) continue;
+          const rawMatch = (data.offers || []).find((o) => String(o?.id) === id);
+          if (!rawMatch) {
+            console.warn(
+              `[Affike] Configured offer ID ${id} is not present in today's /api/offerwall/offers catalog at all — it may have expired or been rotated out on Affike's side.`
+            );
+          } else {
+            console.warn(
+              `[Affike] Configured offer ID ${id} was filtered out — name=${JSON.stringify(
+                rawMatch.name
+              )}, points=${JSON.stringify(rawMatch.points)}.`
+            );
+          }
+        }
       }
 
       return filtered.map(toOffer);
