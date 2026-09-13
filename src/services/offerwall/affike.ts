@@ -172,6 +172,24 @@ export class AffikeProvider implements OfferwallProvider {
       });
       const filtered = rawOffers.filter((o) => allowedIds.has(String(o.id)));
 
+      // Affike only ever tells us when a whole offer is fully verified
+      // complete — there's no per-step signal for multi-step offers, so
+      // we can't legitimately show step-by-step progress for them. Only
+      // single-step offers get shown; any configured ID that turns out
+      // to have more than one step is logged (same pattern as the
+      // expired/missing diagnostics below) so you know to remove it from
+      // AFFIKE_ACTIVATED_OFFER_IDS.
+      const singleStep = filtered.filter((o) => {
+        const steps = o.conversionEvents?.length ?? 1;
+        if (steps > 1) {
+          console.warn(
+            `[Affike] Configured offer ID ${o.id} ("${o.name}") has ${steps} steps — skipping since individual steps can't be tracked. Remove it from AFFIKE_ACTIVATED_OFFER_IDS.`
+          );
+          return false;
+        }
+        return true;
+      });
+
       if (allowedIds.size === 0) {
         console.warn(
           "[Affike] AFFIKE_ACTIVATED_OFFER_IDS is empty — showing zero Affike offers until you add activated offer IDs."
@@ -201,7 +219,7 @@ export class AffikeProvider implements OfferwallProvider {
         }
       }
 
-      return filtered.map(toOffer);
+      return singleStep.map(toOffer);
     } catch (error) {
       console.error(
         "[Affike] Failed to fetch offers:",
