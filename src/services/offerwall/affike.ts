@@ -73,16 +73,6 @@ function buildOffersUrl(apiKey: string): string {
   return `https://affike.com/api/offerwall/offers?${params.toString()}`;
 }
 
-function isAvailableInCountry(offer: AffikeRawOffer, country?: string): boolean {
-  if (!country || !offer.countries?.length) return true;
-
-  const normalizedCountry = country.trim().toUpperCase();
-  return offer.countries.some((offerCountry) => {
-    const normalizedOfferCountry = offerCountry.trim().toUpperCase();
-    return normalizedOfferCountry === normalizedCountry || normalizedOfferCountry === "ALL";
-  });
-}
-
 function normalizeAffikeType(category?: string): string {
   const raw = (category || "").toLowerCase();
 
@@ -142,8 +132,7 @@ export class AffikeProvider implements OfferwallProvider {
 
   async getOffers(
     _userId?: string,
-    _userIp?: string,
-    userCountry?: string
+    _userIp?: string
   ): Promise<Offer[]> {
     const apiKey = getApiKey();
 
@@ -180,7 +169,6 @@ export class AffikeProvider implements OfferwallProvider {
         if (!offer?.id || !offer?.name) return false;
         if (Number.isFinite(offer.points) && Number(offer.points) <= 0) return false;
         if ((offer.conversionEvents || []).length !== 1) return false;
-        if (!isAvailableInCountry(offer, userCountry)) return false;
         return true;
       });
       const filtered = allowedIds
