@@ -25,20 +25,27 @@ function shuffleOffers(offers: Offer[]) {
   return shuffled;
 }
 
-function readStartedCpxOffers() {
+function readStartedCpxOffers(): Offer[] {
   if (typeof window === "undefined") return [];
 
   try {
     const stored = window.localStorage.getItem(CPX_STARTED_OFFERS_KEY);
     const parsed = stored ? JSON.parse(stored) : [];
-    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((offer): offer is Offer => (
+        Boolean(offer) &&
+        typeof offer === "object" &&
+        typeof offer.id === "string" &&
+        offer.provider === "cpx-research"
+      ))
+      : [];
   } catch {
     return [];
   }
 }
 
-function writeStartedCpxOffers(offerIds: string[]) {
-  window.localStorage.setItem(CPX_STARTED_OFFERS_KEY, JSON.stringify(offerIds));
+function writeStartedCpxOffers(offers: Offer[]) {
+  window.localStorage.setItem(CPX_STARTED_OFFERS_KEY, JSON.stringify(offers));
 }
 
 export default function EarnPage() {
@@ -53,7 +60,7 @@ export default function EarnPage() {
   const [offersLoading, setOffersLoading] = useState(true);
   const [redirectNoticeOpen, setRedirectNoticeOpen] = useState(false);
   const [pendingOfferId, setPendingOfferId] = useState<string | null>(null);
-  const [startedCpxOffers, setStartedCpxOffers] = useState<string[]>(readStartedCpxOffers);
+  const [startedCpxOffers, setStartedCpxOffers] = useState<Offer[]>(readStartedCpxOffers);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,7 +98,7 @@ export default function EarnPage() {
       setOffers((current) => current.filter((offer) => offer.id !== offerId));
       setVisibleCompleted((current) => current.filter((id) => id !== offerId));
       setStartedCpxOffers((current) => {
-        const next = current.filter((id) => id !== offerId);
+        const next = current.filter((offer) => offer.id !== offerId);
         writeStartedCpxOffers(next);
         return next;
       });
@@ -128,7 +135,7 @@ export default function EarnPage() {
         if (data.completed) {
           setVisibleCompleted((current) => [...new Set([...current, pendingOfferId])]);
           setStartedCpxOffers((current) => {
-            const next = current.filter((id) => id !== pendingOfferId);
+            const next = current.filter((offer) => offer.id !== pendingOfferId);
             writeStartedCpxOffers(next);
             return next;
           });
@@ -188,7 +195,10 @@ export default function EarnPage() {
         // task is actually verified — never by anything happening here.
         if (offer.provider === "cpx-research") {
           window.localStorage.setItem(CPX_RETURN_OFFER_KEY, offer.id);
-          const nextStarted = [...new Set([...readStartedCpxOffers(), offer.id])];
+          const nextStarted = [
+            ...readStartedCpxOffers().filter((startedOffer) => startedOffer.id !== offer.id),
+            offer,
+          ];
           writeStartedCpxOffers(nextStarted);
           setStartedCpxOffers(nextStarted);
         }
@@ -206,10 +216,11 @@ export default function EarnPage() {
     }
   };
 
-  const continueOffers = offers.filter(
-    (offer) => offer.provider === "cpx-research" && startedCpxOffers.includes(offer.id)
+  const continueOffers = startedCpxOffers.filter(
+    (offer) => !visibleCompleted.includes(offer.id)
   );
-  const newOffers = offers.filter((offer) => !continueOffers.some((item) => item.id === offer.id));
+  const continueOfferIds = new Set(continueOffers.map((offer) => offer.id));
+  const newOffers = offers.filter((offer) => !continueOfferIds.has(offer.id));
 
   return (
     <PageContainer>

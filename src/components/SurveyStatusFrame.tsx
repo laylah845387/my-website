@@ -39,7 +39,13 @@ export default function SurveyStatusFrame({
       if (Array.isArray(startedOffers)) {
         window.localStorage.setItem(
           CPX_STARTED_OFFERS_KEY,
-          JSON.stringify(startedOffers.filter((id) => id !== offerId))
+          JSON.stringify(
+            startedOffers.filter((startedOffer) => (
+              typeof startedOffer === "string"
+                ? startedOffer !== offerId
+                : startedOffer?.id !== offerId
+            ))
+          )
         );
       }
     } catch {
