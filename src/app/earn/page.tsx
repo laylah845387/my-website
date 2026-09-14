@@ -14,6 +14,32 @@ import { Clock, History } from "lucide-react";
 
 const CPX_RETURN_OFFER_KEY = "cpx-return-offer-id";
 const CPX_DISMISSED_OFFER_EVENT = "cpx-dismissed-offer-id";
+const CPX_STARTED_OFFERS_KEY = "cpx-started-offer-ids";
+
+function shuffleOffers(offers: Offer[]) {
+  const shuffled = [...offers];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
+}
+
+function readStartedCpxOffers() {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const stored = window.localStorage.getItem(CPX_STARTED_OFFERS_KEY);
+    const parsed = stored ? JSON.parse(stored) : [];
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeStartedCpxOffers(offerIds: string[]) {
+  window.localStorage.setItem(CPX_STARTED_OFFERS_KEY, JSON.stringify(offerIds));
+}
 
 export default function EarnPage() {
   const router = useRouter();
@@ -27,6 +53,7 @@ export default function EarnPage() {
   const [offersLoading, setOffersLoading] = useState(true);
   const [redirectNoticeOpen, setRedirectNoticeOpen] = useState(false);
   const [pendingOfferId, setPendingOfferId] = useState<string | null>(null);
+  const [startedCpxOffers, setStartedCpxOffers] = useState<string[]>(readStartedCpxOffers);
 
   useEffect(() => {
     let cancelled = false;
@@ -35,7 +62,7 @@ export default function EarnPage() {
       .then((res) => res.json())
       .then((offersData) => {
         if (!cancelled) {
-          setOffers(offersData.offers ?? []);
+          setOffers(shuffleOffers(offersData.offers ?? []));
           setVisibleCompleted(offersData.completedOffers ?? []);
         }
       })
@@ -63,12 +90,26 @@ export default function EarnPage() {
       const offerId = event.newValue;
       setOffers((current) => current.filter((offer) => offer.id !== offerId));
       setVisibleCompleted((current) => current.filter((id) => id !== offerId));
+      setStartedCpxOffers((current) => {
+        const next = current.filter((id) => id !== offerId);
+        writeStartedCpxOffers(next);
+        return next;
+      });
       setPendingOfferId((current) => (current === offerId ? null : current));
       setRedirectNoticeOpen(false);
     };
 
+    const handleStartedOffers = (event: StorageEvent) => {
+      if (event.key !== CPX_STARTED_OFFERS_KEY) return;
+      setStartedCpxOffers(readStartedCpxOffers());
+    };
+
     window.addEventListener("storage", handleDismissedOffer);
-    return () => window.removeEventListener("storage", handleDismissedOffer);
+    window.addEventListener("storage", handleStartedOffers);
+    return () => {
+      window.removeEventListener("storage", handleDismissedOffer);
+      window.removeEventListener("storage", handleStartedOffers);
+    };
   }, []);
 
   useEffect(() => {
@@ -86,6 +127,11 @@ export default function EarnPage() {
         const data = await res.json();
         if (data.completed) {
           setVisibleCompleted((current) => [...new Set([...current, pendingOfferId])]);
+          setStartedCpxOffers((current) => {
+            const next = current.filter((id) => id !== pendingOfferId);
+            writeStartedCpxOffers(next);
+            return next;
+          });
           setRedirectNoticeOpen(false);
           setPendingOfferId(null);
           await refreshUserData();
@@ -142,6 +188,9 @@ export default function EarnPage() {
         // task is actually verified — never by anything happening here.
         if (offer.provider === "cpx-research") {
           window.localStorage.setItem(CPX_RETURN_OFFER_KEY, offer.id);
+          const nextStarted = [...new Set([...readStartedCpxOffers(), offer.id])];
+          writeStartedCpxOffers(nextStarted);
+          setStartedCpxOffers(nextStarted);
         }
         window.open(data.redirectUrl, "_blank", "noopener,noreferrer");
         setPendingOfferId(offer.id);
@@ -156,6 +205,11 @@ export default function EarnPage() {
       showToast("Couldn't start this offer right now. Please try again in a moment.", "error");
     }
   };
+
+  const continueOffers = offers.filter(
+    (offer) => offer.provider === "cpx-research" && startedCpxOffers.includes(offer.id)
+  );
+  const newOffers = offers.filter((offer) => !continueOffers.some((item) => item.id === offer.id));
 
   return (
     <PageContainer>
@@ -203,17 +257,26 @@ export default function EarnPage() {
             <h2 className="mb-4 text-[11px] font-bold uppercase tracking-[0.14em] text-text-secondary">
               Continue
             </h2>
-            <div className="flex flex-col items-center justify-center gap-3 py-10">
-              <Clock size={28} className="text-text-muted" aria-hidden="true" />
-              <p className="text-[13px] text-text-muted">Choose an offer to get started.</p>
-            </div>
+            {continueOffers.length > 0 ? (
+              <OfferGrid
+                offers={continueOffers}
+                completedOffers={visibleCompleted}
+                activeOfferId={redirectNoticeOpen ? pendingOfferId : null}
+                onSelectOffer={handleSelectOffer}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-3 py-10">
+                <Clock size={28} className="text-text-muted" aria-hidden="true" />
+                <p className="text-[13px] text-text-muted">Choose an offer to get started.</p>
+              </div>
+            )}
           </section>
           <section>
             <h2 className="mb-4 text-[11px] font-bold uppercase tracking-[0.14em] text-text-secondary">
               New
             </h2>
             <OfferGrid
-              offers={offers}
+              offers={newOffers}
               completedOffers={visibleCompleted}
               activeOfferId={redirectNoticeOpen ? pendingOfferId : null}
               onSelectOffer={handleSelectOffer}

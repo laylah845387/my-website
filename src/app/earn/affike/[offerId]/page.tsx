@@ -7,14 +7,17 @@ import { useApp } from "@/lib/store";
 import { Offer } from "@/types";
 import PageContainer from "@/components/PageContainer";
 import LoadingState from "@/components/LoadingState";
+import RedirectNoticeModal from "@/components/RedirectNoticeModal";
 
 export default function AffikeOfferPage() {
   const router = useRouter();
   const params = useParams<{ offerId: string }>();
-  const { session, login, showToast } = useApp();
+  const { session, login, refreshUserData, showToast } = useApp();
   const [offer, setOffer] = useState<Offer | null>(null);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
+  const [redirectNoticeOpen, setRedirectNoticeOpen] = useState(false);
+  const [completed, setCompleted] = useState(false);
 
   useEffect(() => {
     const offerId = params.offerId;
@@ -65,6 +68,7 @@ export default function AffikeOfferPage() {
       const data = await response.json();
       if (data.redirectUrl) {
         window.open(data.redirectUrl, "_blank", "noopener,noreferrer");
+        setRedirectNoticeOpen(true);
       } else {
         showToast("Couldn't start this offer right now. Please try again in a moment.", "error");
       }
@@ -74,6 +78,38 @@ export default function AffikeOfferPage() {
       setStarting(false);
     }
   };
+
+  useEffect(() => {
+    if (!redirectNoticeOpen || !offer) return;
+
+    let cancelled = false;
+    const checkCompletion = async () => {
+      try {
+        const response = await fetch(
+          `/api/offers/status?offerId=${encodeURIComponent(offer.id)}`,
+          { cache: "no-store" }
+        );
+        if (!response.ok || cancelled) return;
+
+        const data = await response.json();
+        if (data.completed) {
+          setCompleted(true);
+          setRedirectNoticeOpen(false);
+          await refreshUserData();
+          showToast("Offer completed. Your points have been added.", "success");
+        }
+      } catch {
+        // The next poll will retry while the provider processes the offer.
+      }
+    };
+
+    checkCompletion();
+    const intervalId = window.setInterval(checkCompletion, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [offer, redirectNoticeOpen, refreshUserData, showToast]);
 
   if (loading) {
     return (
@@ -101,7 +137,7 @@ export default function AffikeOfferPage() {
 
   const milestones = offer.milestones ?? [];
   const instructionText = offer.description?.trim() ||
-    "Complete the required action outside of this site. Once it is finished and verified, the points for that step will be added to your balance.";
+    "Complete the offer description outside of this site. Once it is finished and verified, the points for that step will be added to your balance.";
 
   return (
     <PageContainer>
@@ -164,22 +200,26 @@ export default function AffikeOfferPage() {
                 </div>
               ) : (
                 <p className="border-y border-border py-4 text-sm leading-6 text-text-secondary">
-                  Complete the action shown in the offer outside of this site. Once the task is verified, the points will be added to your balance.
+                  Complete the offer description outside of this site. Once the task is verified, the points will be added to your balance.
                 </p>
               )}
             </div>
 
             <button
               onClick={startOffer}
-              disabled={starting}
+              disabled={starting || completed}
               className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-accent-green px-5 text-xs font-bold uppercase tracking-[0.1em] text-bg transition-colors hover:bg-accent-green/90 disabled:cursor-wait disabled:opacity-60"
             >
               <ExternalLink size={15} />
-              {starting ? "Opening offer..." : "Start offer"}
+              {completed ? "Offer completed" : starting ? "Opening offer..." : "Start offer"}
             </button>
           </div>
         </div>
       </div>
+      <RedirectNoticeModal
+        isOpen={redirectNoticeOpen}
+        onClose={() => setRedirectNoticeOpen(false)}
+      />
     </PageContainer>
   );
 }

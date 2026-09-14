@@ -12,6 +12,7 @@ interface SurveyStatusFrameProps {
 
 const CPX_RETURN_OFFER_KEY = "cpx-return-offer-id";
 const CPX_DISMISSED_OFFER_EVENT = "cpx-dismissed-offer-id";
+const CPX_STARTED_OFFERS_KEY = "cpx-started-offer-ids";
 
 export default function SurveyStatusFrame({
   appId,
@@ -32,6 +33,18 @@ export default function SurveyStatusFrame({
     if (!offerId) return;
 
     window.localStorage.removeItem(CPX_RETURN_OFFER_KEY);
+    try {
+      const stored = window.localStorage.getItem(CPX_STARTED_OFFERS_KEY);
+      const startedOffers = stored ? JSON.parse(stored) : [];
+      if (Array.isArray(startedOffers)) {
+        window.localStorage.setItem(
+          CPX_STARTED_OFFERS_KEY,
+          JSON.stringify(startedOffers.filter((id) => id !== offerId))
+        );
+      }
+    } catch {
+      // Ignore malformed browser state and let the server-side dismissal stand.
+    }
     window.localStorage.setItem(CPX_DISMISSED_OFFER_EVENT, offerId);
     void fetch("/api/offers/dismiss", {
       method: "POST",
