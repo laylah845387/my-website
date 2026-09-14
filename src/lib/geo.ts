@@ -16,6 +16,7 @@ function geoKey(ip: string) {
  */
 export async function getCountryForIp(ip: string | undefined | null): Promise<string | null> {
   if (!ip || ip === "0.0.0.0" || ip === "127.0.0.1" || ip === "::1") {
+    console.warn(`[Geo] No usable IP to look up (got ${JSON.stringify(ip)}) — treating region as unknown.`);
     return null;
   }
 
@@ -24,25 +25,35 @@ export async function getCountryForIp(ip: string | undefined | null): Promise<st
   try {
     const cached = await redis.get<string>(geoKey(ip));
     if (cached) return cached;
-  } catch {
-    // Cache miss/error — fall through to a live lookup.
+  } catch (err) {
+    console.warn(`[Geo] Redis cache read failed for ${ip}:`, err);
   }
 
   try {
     const res = await fetch(`https://ipapi.co/${ip}/country/`, {
       signal: AbortSignal.timeout(3000),
     });
-    if (!res.ok) return null;
 
-    const text = (await res.text()).trim().toUpperCase();
+    const text = (await res.text()).trim();
+
+    if (!res.ok) {
+      console.warn(`[Geo] ipapi.co returned ${res.status} for IP ${ip}: ${text}`);
+      return null;
+    }
+
+    const upper = text.toUpperCase();
     // ipapi.co returns a bare 2-letter code on success, or an error
     // message / empty body on failure or rate-limit — only trust
     // something that actually looks like a country code.
-    if (!/^[A-Z]{2}$/.test(text)) return null;
+    if (!/^[A-Z]{2}$/.test(upper)) {
+      console.warn(`[Geo] ipapi.co returned an unexpected body for IP ${ip}: ${JSON.stringify(text)}`);
+      return null;
+    }
 
-    await redis.set(geoKey(ip), text, { ex: GEO_TTL_SECONDS }).catch(() => {});
-    return text;
-  } catch {
+    await redis.set(geoKey(ip), upper, { ex: GEO_TTL_SECONDS }).catch(() => {});
+    return upper;
+  } catch (err) {
+    console.warn(`[Geo] Lookup failed for IP ${ip}:`, err);
     return null;
   }
 }

@@ -179,6 +179,11 @@ export class AffikeProvider implements OfferwallProvider {
       const allowedIds = getAllowedOfferIds();
       const visitorCountry = await getCountryForIp(userIp);
       const effectiveCountry = visitorCountry || getFallbackCountry();
+      console.log(
+        `[Affike] userIp=${JSON.stringify(userIp)}, detected country=${JSON.stringify(
+          visitorCountry
+        )}, effective country used for filtering=${JSON.stringify(effectiveCountry)}`
+      );
 
       const passesQuality = (offer: AffikeRawOffer) =>
         !!offer?.id &&
