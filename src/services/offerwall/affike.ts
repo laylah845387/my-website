@@ -191,9 +191,15 @@ export class AffikeProvider implements OfferwallProvider {
         !(Number.isFinite(offer.points) && Number(offer.points) <= 0);
 
       const passesRegion = (offer: AffikeRawOffer) =>
+        // If we couldn't determine a country at all (geolocation down,
+        // rate-limited, etc.), don't restrict by region — showing a
+        // few offers that might not cover this visitor's actual country
+        // is a better failure mode than showing almost nothing, since
+        // most of the catalog lists a country.
+        !effectiveCountry ||
         !offer.countries ||
         offer.countries.length === 0 ||
-        (!!effectiveCountry && offer.countries.some((c) => c.toUpperCase() === effectiveCountry));
+        offer.countries.some((c) => c.toUpperCase() === effectiveCountry);
 
       const passesSingleStep = (offer: AffikeRawOffer) =>
         (offer.conversionEvents?.length ?? 1) <= 1;
