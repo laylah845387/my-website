@@ -101,6 +101,13 @@ export async function GET(request: NextRequest) {
   const status = params.get("status") || "pending";
   const offerId = params.get("offer_id");
 
+  // Affike's dashboard test uses placeholder values such as
+  // "test_click_..." and "publisher-postback-test", not a real user ID.
+  // Confirm delivery without writing a transaction or awarding points.
+  if (offerId === "publisher-postback-test" || userId?.startsWith("test_click_")) {
+    return NextResponse.json({ status: "test_ok" });
+  }
+
   if (
     !userId ||
     userId.startsWith("{") ||
