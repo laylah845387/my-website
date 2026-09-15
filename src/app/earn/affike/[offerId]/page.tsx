@@ -18,6 +18,8 @@ export default function AffikeOfferPage() {
   const [starting, setStarting] = useState(false);
   const [redirectNoticeOpen, setRedirectNoticeOpen] = useState(false);
   const [completed, setCompleted] = useState(false);
+  const [trackingStarted, setTrackingStarted] = useState(false);
+  const [transactionStatus, setTransactionStatus] = useState<string | null>(null);
 
   useEffect(() => {
     const offerId = params.offerId;
@@ -68,6 +70,8 @@ export default function AffikeOfferPage() {
       const data = await response.json();
       if (data.redirectUrl) {
         window.open(data.redirectUrl, "_blank", "noopener,noreferrer");
+        setTrackingStarted(true);
+        setTransactionStatus("pending");
         setRedirectNoticeOpen(true);
       } else {
         showToast("Couldn't start this offer right now. Please try again in a moment.", "error");
@@ -80,7 +84,7 @@ export default function AffikeOfferPage() {
   };
 
   useEffect(() => {
-    if (!redirectNoticeOpen || !offer) return;
+    if (!trackingStarted || !offer) return;
 
     let cancelled = false;
     const checkCompletion = async () => {
@@ -92,11 +96,24 @@ export default function AffikeOfferPage() {
         if (!response.ok || cancelled) return;
 
         const data = await response.json();
-        if (data.completed) {
+        const latestTransaction = data.affikeTransactions?.[0];
+        if (latestTransaction?.status) {
+          setTransactionStatus(latestTransaction.status);
+        }
+
+        if (latestTransaction && /reject|declin|cancel|chargeback|revers|fraud/i.test(latestTransaction.status)) {
+          showToast("Affike reported that this offer was not approved.", "error");
+          return;
+        }
+
+        if (data.completed && latestTransaction?.status === "approved") {
           setCompleted(true);
           setRedirectNoticeOpen(false);
           await refreshUserData();
           showToast("Offer completed. Your points have been added.", "success");
+        } else if (data.completed && latestTransaction?.status === "pending") {
+          await refreshUserData();
+          showToast("Points added while Affike finishes verifying your offer.", "info");
         }
       } catch {
         // The next poll will retry while the provider processes the offer.
@@ -109,7 +126,7 @@ export default function AffikeOfferPage() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [offer, redirectNoticeOpen, refreshUserData, showToast]);
+  }, [offer, refreshUserData, showToast, trackingStarted]);
 
   if (loading) {
     return (
@@ -207,12 +224,27 @@ export default function AffikeOfferPage() {
 
             <button
               onClick={startOffer}
-              disabled={starting || completed}
+              disabled={starting || completed || trackingStarted}
               className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-accent-green px-5 text-xs font-bold uppercase tracking-[0.1em] text-bg transition-colors hover:bg-accent-green/90 disabled:cursor-wait disabled:opacity-60"
             >
               <ExternalLink size={15} />
-              {completed ? "Offer completed" : starting ? "Opening offer..." : "Start offer"}
+              {completed
+                ? "Offer completed"
+                : trackingStarted
+                  ? "Verification pending"
+                  : starting
+                    ? "Opening offer..."
+                    : "Start offer"}
             </button>
+            {trackingStarted && !completed ? (
+              <p className="text-center text-xs leading-5 text-text-secondary">
+                {transactionStatus && /reject|declin|cancel|chargeback|revers|fraud/i.test(transactionStatus)
+                  ? "Affike did not approve this conversion."
+                  : transactionStatus === "approved"
+                    ? "Affike approved the conversion. Refreshing your points..."
+                    : "Waiting for Affike to verify your completion. This can take a few minutes."}
+              </p>
+            ) : null}
           </div>
         </div>
       </div>

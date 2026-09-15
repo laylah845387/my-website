@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySessionCookie } from "@/lib/session";
-import { getCompletedOffers, getPoints } from "@/lib/user-data";
+import { getAffikeTransactions, getCompletedOffers, getPoints } from "@/lib/user-data";
 
 export async function GET(request: NextRequest) {
   const cookie = request.cookies.get("session")?.value;
@@ -20,8 +20,11 @@ export async function GET(request: NextRequest) {
     getPoints(user.id),
   ]);
 
+  const affikeTransactions = await getAffikeTransactions(user.id, offerId);
+
   return NextResponse.json({
     completed: completedOffers.includes(offerId),
     points,
+    affikeTransactions,
   });
 }

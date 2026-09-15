@@ -39,6 +39,8 @@ import { adjustPoints, markAffikeTransaction, markOfferComplete } from "@/lib/us
  * we treat anything containing reject/declin/cancel/chargeback/
  * revers/fraud (case-insensitive) as a reversal and credit everything
  * else.
+ * Pending statuses are recorded but do not award
+ * points until a later approved callback arrives.
  *
  * We identify the user from `click_id`. As of the aff_id-based tracking
  * link switch, confirm this is still how the user gets identified — if
@@ -53,6 +55,13 @@ function looksLikeReversal(status: string): boolean {
   const s = status.toLowerCase();
   return ["reject", "declin", "cancel", "chargeback", "revers", "fraud"].some((kw) =>
     s.includes(kw)
+  );
+}
+
+function isApproved(status: string): boolean {
+  const normalized = status.toLowerCase();
+  return ["approved", "complete", "completed", "confirmed", "success", "successful"].some(
+    (value) => normalized.includes(value)
   );
 }
 
@@ -80,36 +89,106 @@ export async function GET(request: NextRequest) {
   // real click has gone through with sub2 set, and add &sub2={sub2} to
   // the postback URL too if that macro exists. Reading both here so
   // whichever one actually carries it still works.
-  const userId = params.get("click_id") || params.get("sub2");
+  const userId =
+    params.get("user_id") ||
+    params.get("sub2") ||
+    params.get("sub_id_2") ||
+    params.get("subid2") ||
+    params.get("click_id") ||
+    params.get("publisher_click_id");
   const txnId = params.get("txn_id");
-  const rewardRaw = params.get("user_reward");
-  const status = params.get("status") || "approved";
+  const rewardRaw = params.get("user_reward") || params.get("publisher_earned") || params.get("payout");
+  const status = params.get("status") || "pending";
   const offerId = params.get("offer_id");
 
-  if (!userId || !txnId || !rewardRaw) {
+  if (
+    !userId ||
+    userId.startsWith("{") ||
+    userId.endsWith("}") ||
+    !/^\d+$/.test(userId) ||
+    !txnId ||
+    txnId.startsWith("{") ||
+    !rewardRaw ||
+    rewardRaw.startsWith("{")
+  ) {
+    console.error("[Affike] Postback missing usable user, transaction, or reward data", {
+      keys: [...params.keys()],
+      userId,
+      txnId,
+      rewardRaw,
+    });
     return new NextResponse("Missing parameters", { status: 400 });
   }
 
   const points = dollarsToPoints(parseFloat(rewardRaw) || 0);
   const isReversal = looksLikeReversal(status);
+  const approved = isApproved(status);
 
-  const previous = await markAffikeTransaction(txnId, { userId, points, status });
+  const previous = await markAffikeTransaction(txnId, {
+    userId,
+    points,
+    status,
+    offerId: offerId ? `affike-${offerId}` : null,
+  });
 
   if (previous) {
-    if (isReversal && !looksLikeReversal(previous.status)) {
+    if (isReversal && !looksLikeReversal(previous.status) && previous.credited) {
       await adjustPoints(previous.userId, -previous.points);
       return NextResponse.json({ status: "reversed", offerId, txnId });
     }
+
+    if (
+      approved &&
+      !isApproved(previous.status) &&
+      !looksLikeReversal(previous.status) &&
+      !previous.credited
+    ) {
+      await adjustPoints(userId, points);
+      if (offerId) {
+        await markOfferComplete(userId, `affike-${offerId}`, 0);
+      }
+      await markAffikeTransaction(txnId, {
+        userId,
+        points,
+        status,
+        offerId: offerId ? `affike-${offerId}` : null,
+        credited: true,
+      });
+      return NextResponse.json({ status: "ok", offerId, txnId });
+    }
+
     return new NextResponse("Duplicate transaction", { status: 409 });
   }
 
   if (isReversal) {
-    return NextResponse.json({ status: "ignored", offerId, txnId });
+    return NextResponse.json({ status: isReversal ? "ignored" : "pending", offerId, txnId });
+  }
+
+  if (!approved) {
+    await adjustPoints(userId, points);
+    if (offerId) {
+      await markOfferComplete(userId, `affike-${offerId}`, 0);
+    }
+    await markAffikeTransaction(txnId, {
+      userId,
+      points,
+      status,
+      offerId: offerId ? `affike-${offerId}` : null,
+      credited: true,
+    });
+    return NextResponse.json({ status: "pending", credited: true, offerId, txnId });
   }
 
   await adjustPoints(userId, points);
   if (offerId) {
     await markOfferComplete(userId, `affike-${offerId}`, 0);
   }
+  await markAffikeTransaction(txnId, {
+    userId,
+    points,
+    status,
+    offerId: offerId ? `affike-${offerId}` : null,
+    credited: true,
+  });
   return NextResponse.json({ status: "ok", offerId, txnId });
 }

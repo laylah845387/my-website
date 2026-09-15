@@ -320,12 +320,12 @@ export class AffikeProvider implements OfferwallProvider {
     // directly against the dashboard's own tracking-link generator (the
     // UI just labels it "Sub ID 2" — the actual query param is `sub2`).
     // We use it to carry our own userId through the click, so the
-    // postback can tell us who to credit. Whether it comes back as
-    // {click_id} or as its own {sub2} macro on the postback isn't
-    // confirmed yet — see the note in the webhook file.
+    // postback can tell us who to credit. Configure the postback with
+    // the {sub2} macro so this value is returned unchanged.
     const params = new URLSearchParams({
       aff_id: affId,
       offer_id: rawOfferId,
+      click_id: userId,
       sub2: userId,
     });
 

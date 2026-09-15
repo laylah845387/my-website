@@ -96,6 +96,8 @@ export interface AffikeTransactionRecord {
   userId: string;
   points: number;
   status: string;
+  offerId?: string | null;
+  credited?: boolean;
 }
 
 /**
@@ -115,8 +117,32 @@ export async function markAffikeTransaction(
   const redis = getRedis();
   const key = "affike:transactions";
   const previous = await redis.hget<AffikeTransactionRecord>(key, txnId);
-  await redis.hset(key, { [txnId]: record });
+  const nextRecord = {
+    ...record,
+    credited: record.credited ?? previous?.credited ?? false,
+  };
+  await redis.hset(key, { [txnId]: nextRecord });
+  await redis.sadd(`affike:user-transactions:${record.userId}`, txnId);
   return previous ?? null;
+}
+
+export async function getAffikeTransactions(
+  discordId: string,
+  offerId?: string
+): Promise<AffikeTransactionRecord[]> {
+  const redis = getRedis();
+  const transactionIds = await redis.smembers(`affike:user-transactions:${discordId}`);
+  if (!transactionIds?.length) return [];
+
+  const records = await Promise.all(
+    transactionIds.map((txnId) => redis.hget<AffikeTransactionRecord>("affike:transactions", txnId))
+  );
+
+  return records
+    .filter((record): record is AffikeTransactionRecord =>
+      !!record && (!offerId || record.offerId === offerId)
+    )
+    .reverse();
 }
 
 /**
