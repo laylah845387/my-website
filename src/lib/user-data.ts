@@ -145,7 +145,7 @@ export async function getAffikeTransactions(
     .reverse();
 }
 
-export interface AyocoTransactionRecord {
+export interface AoycoTransactionRecord {
   userId: string;
   points: number;
   status: string;
@@ -153,13 +153,13 @@ export interface AyocoTransactionRecord {
   credited?: boolean;
 }
 
-export async function markAyocoTransaction(
+export async function markAoycoTransaction(
   transactionId: string,
-  record: AyocoTransactionRecord
-): Promise<AyocoTransactionRecord | null> {
+  record: AoycoTransactionRecord
+): Promise<AoycoTransactionRecord | null> {
   const redis = getRedis();
-  const key = "ayoco:transactions";
-  const previous = await redis.hget<AyocoTransactionRecord>(key, transactionId);
+  const key = "aoyco:transactions";
+  const previous = await redis.hget<AoycoTransactionRecord>(key, transactionId);
   const nextRecord = {
     ...record,
     credited: record.credited ?? previous?.credited ?? false,

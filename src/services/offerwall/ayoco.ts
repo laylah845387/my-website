@@ -1,17 +1,17 @@
 import { Offer } from "@/types";
 import { OfferwallProvider } from "./types";
 
-type AyocoRawOffer = Record<string, unknown>;
+type AoycoRawOffer = Record<string, unknown>;
+type AoycoEndpoint = "ptc" | "sl-api";
 
-function config() {
-  const offersUrl = process.env.AYOCO_OFFERS_URL;
-  const trackingUrl = process.env.AYOCO_TRACKING_URL;
-  const apiKey = process.env.AYOCO_API_KEY;
-  if (!offersUrl || !trackingUrl) return null;
-  return { offersUrl, trackingUrl, apiKey };
+function getConfig() {
+  const apiKey = process.env.AOYCO_API_KEY;
+  const bearerToken = process.env.AOYCO_BEARER_TOKEN;
+  if (!apiKey || !bearerToken) return null;
+  return { apiKey, bearerToken };
 }
 
-function value(raw: AyocoRawOffer, ...keys: string[]): string {
+function getValue(raw: AoycoRawOffer, ...keys: string[]): string {
   for (const key of keys) {
     const candidate = raw[key];
     if (candidate !== undefined && candidate !== null && String(candidate).trim()) {
@@ -21,58 +21,61 @@ function value(raw: AyocoRawOffer, ...keys: string[]): string {
   return "";
 }
 
-function replaceMacros(template: string, values: Record<string, string>): string {
-  return template.replace(/\{([a-zA-Z0-9_]+)\}/g, (_, key: string) =>
-    encodeURIComponent(values[key] ?? "")
-  );
+function buildUrl(endpoint: AoycoEndpoint, apiKey: string, userId: string, userIp: string): string {
+  return `https://aoyco.in/api/v1/${endpoint}/${encodeURIComponent(apiKey)}/${encodeURIComponent(userId)}/${encodeURIComponent(userIp)}`;
 }
 
-function normalizeOffers(payload: unknown): AyocoRawOffer[] {
-  if (Array.isArray(payload)) return payload as AyocoRawOffer[];
-  if (!payload || typeof payload !== "object") return [];
-  const body = payload as Record<string, unknown>;
-  for (const key of ["offers", "data", "results"]) {
-    if (Array.isArray(body[key])) return body[key] as AyocoRawOffer[];
-  }
-  return [];
-}
-
-function toOffer(raw: AyocoRawOffer): Offer | null {
-  const rawId = value(raw, "id", "offer_id", "offerId");
-  const title = value(raw, "title", "name", "offer_name");
-  const points = Math.round(Number(value(raw, "points", "reward", "payout", "user_reward")) || 0);
-  if (!rawId || !title || points <= 0) return null;
+function toOffer(raw: AoycoRawOffer, endpoint: AoycoEndpoint): Offer | null {
+  const rawId = getValue(raw, "id", "offer_id");
+  const title = getValue(raw, "title", "name", "offer_name");
+  const points = Math.round(Number(getValue(raw, "reward", "points")) || 0);
+  const url = getValue(raw, "url", "link");
+  if (!rawId || !title || points <= 0 || !url) return null;
 
   return {
-    id: `ayoco-${rawId}`,
-    type: value(raw, "type", "category") || "Offer",
-    duration: value(raw, "duration", "time", "estimated_time") || "VARIES",
+    id: `aoyco-${endpoint}-${rawId}`,
+    type: endpoint === "ptc" ? "PTC" : "Shortlink",
+    duration: getValue(raw, "duration") ? `${getValue(raw, "duration")} SEC` : "VARIES",
     points,
-    rating: Math.min(5, Math.max(1, Math.round(Number(value(raw, "rating", "popularity")) || 5))),
+    rating: 5,
     title,
-    description: value(raw, "description", "requirements", "details"),
-    provider: "ayoco",
+    description: getValue(raw, "description", "requirements"),
+    provider: "aoyco",
+    url,
   };
 }
 
-export class AyocoProvider implements OfferwallProvider {
-  async getOffers(userId: string, userIp = "0.0.0.0"): Promise<Offer[]> {
-    const settings = config();
-    if (!settings) return [];
-
-    const url = new URL(settings.offersUrl);
-    url.searchParams.set("user_id", userId);
-    url.searchParams.set("user_ip", userIp);
-    const headers: HeadersInit = settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {};
+export class AoycoProvider implements OfferwallProvider {
+  private async fetchOffers(endpoint: AoycoEndpoint, userId: string, userIp: string): Promise<Offer[]> {
+    const config = getConfig();
+    if (!config) return [];
 
     try {
-      const response = await fetch(url, { headers, cache: "no-store" });
+      const response = await fetch(buildUrl(endpoint, config.apiKey, userId, userIp), {
+        headers: {
+          Authorization: `Bearer ${config.bearerToken}`,
+          Accept: "application/json",
+        },
+        cache: "no-store",
+      });
       if (!response.ok) return [];
+
       const payload = await response.json();
-      return normalizeOffers(payload).map(toOffer).filter((offer): offer is Offer => !!offer);
+      if (String(payload?.status) !== "200") return [];
+      return (payload.data || [])
+        .map((raw: AoycoRawOffer) => toOffer(raw, endpoint))
+        .filter((offer: Offer | null): offer is Offer => !!offer);
     } catch {
       return [];
     }
+  }
+
+  async getOffers(userId: string, userIp = "0.0.0.0"): Promise<Offer[]> {
+    const results = await Promise.all([
+      this.fetchOffers("ptc", userId, userIp),
+      this.fetchOffers("sl-api", userId, userIp),
+    ]);
+    return results.flat();
   }
 
   async getUserProgress(userId: string) {
@@ -80,17 +83,12 @@ export class AyocoProvider implements OfferwallProvider {
   }
 
   async startOffer(userId: string, offerId: string, userIp = "0.0.0.0") {
-    const settings = config();
-    if (!settings) return {};
+    const match = /^(?:aoyco-)(ptc|sl-api)-(.+)$/.exec(offerId);
+    if (!match) return {};
 
-    const rawOfferId = offerId.replace(/^ayoco-/, "");
-    return {
-      redirectUrl: replaceMacros(settings.trackingUrl, {
-        user_id: userId,
-        sub_id: userId,
-        offer_id: rawOfferId,
-        user_ip: userIp,
-      }),
-    };
+    const endpoint = match[1] as AoycoEndpoint;
+    const offers = await this.fetchOffers(endpoint, userId, userIp);
+    const offer = offers.find((item) => item.id === offerId);
+    return { redirectUrl: offer?.url };
   }
 }

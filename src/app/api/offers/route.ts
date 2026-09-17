@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySessionCookie } from "@/lib/session";
-import { AyocoProvider, BitcotasksProvider, CpxResearchProvider, AffikeProvider } from "@/services/offerwall";
+import { AoycoProvider, BitcotasksProvider, CpxResearchProvider, AffikeProvider } from "@/services/offerwall";
 import { getCompletedOffers, getDismissedOffers } from "@/lib/user-data";
 
 /**
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     new BitcotasksProvider().getOffers(userId, userIp),
     new CpxResearchProvider().getOffers(userId, userIp),
     new AffikeProvider().getOffers(userId, userIp),
-    new AyocoProvider().getOffers(userId, userIp),
+    new AoycoProvider().getOffers(userId, userIp),
   ]);
 
   const allOffers = [...bitcotasksOffers, ...cpxOffers, ...affikeOffers, ...ayocoOffers];
