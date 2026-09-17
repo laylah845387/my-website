@@ -56,6 +56,11 @@ export default function OfferCard({ offer, onSelect, completed, active }: OfferC
           </span>
         </div>
       )}
+      {offer.title ? (
+        <h3 className="line-clamp-2 text-[13px] font-semibold leading-tight text-text-primary">
+          {offer.title}
+        </h3>
+      ) : null}
     </button>
   );
 }

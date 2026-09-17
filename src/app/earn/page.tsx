@@ -17,12 +17,13 @@ const CPX_DISMISSED_OFFER_EVENT = "cpx-dismissed-offer-id";
 const CPX_STARTED_OFFERS_KEY = "cpx-started-offer-ids";
 
 function shuffleOffers(offers: Offer[]) {
-  const shuffled = [...offers];
+  const priorityOffers = offers.filter((offer) => offer.provider === "offerwall-me");
+  const shuffled = offers.filter((offer) => offer.provider !== "offerwall-me");
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
     const swapIndex = Math.floor(Math.random() * (index + 1));
     [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
   }
-  return shuffled;
+  return [...priorityOffers, ...shuffled];
 }
 
 function readStartedCpxOffers(): Offer[] {

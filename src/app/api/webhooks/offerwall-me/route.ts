@@ -51,6 +51,15 @@ export async function POST(request: NextRequest) {
     return new NextResponse("ERROR: Invalid reward", { status: 200 });
   }
 
+  console.log("[Offerwall.me] Postback received", {
+    transactionId,
+    userId,
+    status,
+    reward: rewardRaw,
+    offerName: params.get("offer_name"),
+    offerType: params.get("offer_type"),
+  });
+
   const points = Math.round(reward);
   const previous = await markOfferwallMeTransaction(transactionId, {
     userId,
