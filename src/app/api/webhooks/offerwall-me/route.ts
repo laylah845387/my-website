@@ -6,12 +6,30 @@ function md5(value: string): string {
   return crypto.createHash("md5").update(value).digest("hex");
 }
 
-export async function POST(request: NextRequest) {
-  const body = await request.formData().catch(() => null);
+async function readParams(request: NextRequest): Promise<URLSearchParams> {
   const params = new URLSearchParams(request.nextUrl.searchParams);
-  body?.forEach((value, key) => {
-    if (typeof value === "string") params.set(key, value);
-  });
+  if (request.method !== "POST") return params;
+
+  try {
+    const contentType = request.headers.get("content-type") || "";
+    if (contentType.includes("multipart/form-data") || contentType.includes("application/x-www-form-urlencoded")) {
+      const form = await request.formData();
+      form.forEach((value, key) => {
+        if (typeof value === "string") params.set(key, value);
+      });
+    } else if (contentType.includes("application/json")) {
+      const json = await request.json();
+      Object.entries(json ?? {}).forEach(([key, value]) => params.set(key, String(value)));
+    }
+  } catch {
+    // Keep query parameters if the body is empty or malformed.
+  }
+
+  return params;
+}
+
+export async function POST(request: NextRequest) {
+  const params = await readParams(request);
 
   const secret = process.env.OFFERWALL_ME_SECRET_KEY;
   const userId = params.get("subId");
@@ -45,6 +63,15 @@ export async function POST(request: NextRequest) {
     if (status === "2" && previous.credited) {
       await adjustPoints(previous.userId, -previous.points);
       await markOfferwallMeTransaction(transactionId, { ...previous, status, credited: false });
+    } else if (status === "1" && !previous.credited) {
+      await adjustPoints(userId, points);
+      await markOfferwallMeTransaction(transactionId, {
+        userId,
+        points,
+        status,
+        offerId: null,
+        credited: true,
+      });
     }
     return new NextResponse("ok", { status: 200 });
   }
