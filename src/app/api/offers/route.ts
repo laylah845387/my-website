@@ -26,7 +26,9 @@ export async function GET(request: NextRequest) {
     new OfferwallMeProvider().getOffers(userId, userIp),
   ]);
 
-  const allOffers = [...bitcotasksOffers, ...cpxOffers, ...affikeOffers, ...aoycoOffers, ...offerwallMeOffers];
+  // Temporary testing order: keep Offerwall.me cards at the top until their
+  // integration is verified, then return to the normal mixed ordering.
+  const allOffers = [...offerwallMeOffers, ...bitcotasksOffers, ...cpxOffers, ...affikeOffers, ...aoycoOffers];
 
   if (!user) {
     return NextResponse.json({ offers: allOffers });

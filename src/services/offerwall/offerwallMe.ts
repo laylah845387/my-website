@@ -28,6 +28,18 @@ function value(raw: OfferwallRawOffer, ...keys: string[]): string {
   return "";
 }
 
+function offerType(raw: OfferwallRawOffer): string {
+  const explicit = value(raw, "offer_type", "type").toLowerCase();
+  const searchable = `${explicit} ${value(raw, "title", "name", "offer_name")} ${value(raw, "description")}`.toLowerCase();
+
+  if (searchable.includes("survey")) return "Survey";
+  if (searchable.includes("shortlink")) return "Visit & Earn";
+  if (searchable.includes("ptc") || searchable.includes("visit advertiser")) return "Visit & Earn";
+  if (/(install|app|game)/.test(searchable)) return "App Download";
+  if (explicit) return explicit.charAt(0).toUpperCase() + explicit.slice(1);
+  return "Offer";
+}
+
 function toOffer(raw: OfferwallRawOffer): Offer | null {
   const rawId = value(raw, "id", "offer_id");
   const title = value(raw, "title", "name", "offer_name");
@@ -37,7 +49,7 @@ function toOffer(raw: OfferwallRawOffer): Offer | null {
 
   return {
     id: `offerwall-me-${rawId}`,
-    type: value(raw, "offer_type", "type") || "Offer",
+    type: offerType(raw),
     duration: value(raw, "duration") ? `${value(raw, "duration")} SEC` : "VARIES",
     points,
     rating: 5,
