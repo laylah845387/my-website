@@ -7,7 +7,10 @@ type AoycoEndpoint = "ptc" | "sl-api";
 function getConfig() {
   const apiKey = process.env.AOYCO_API_KEY;
   const bearerToken = process.env.AOYCO_BEARER_TOKEN;
-  if (!apiKey || !bearerToken) return null;
+  if (!apiKey || !bearerToken) {
+    console.error("[AoyCo] Missing AOYCO_API_KEY or AOYCO_BEARER_TOKEN");
+    return null;
+  }
   return { apiKey, bearerToken };
 }
 
@@ -58,14 +61,23 @@ export class AoycoProvider implements OfferwallProvider {
         },
         cache: "no-store",
       });
-      if (!response.ok) return [];
+      if (!response.ok) {
+        console.error(`[AoyCo] ${endpoint} API returned HTTP ${response.status}`);
+        return [];
+      }
 
       const payload = await response.json();
-      if (String(payload?.status) !== "200") return [];
-      return (payload.data || [])
+      if (String(payload?.status) !== "200") {
+        console.error(`[AoyCo] ${endpoint} API returned status ${String(payload?.status)}: ${String(payload?.message || "unknown error")}`);
+        return [];
+      }
+      const offers = (payload.data || [])
         .map((raw: AoycoRawOffer) => toOffer(raw, endpoint))
         .filter((offer: Offer | null): offer is Offer => !!offer);
+      console.log(`[AoyCo] ${endpoint} returned ${offers.length} usable offers`);
+      return offers;
     } catch {
+      console.error(`[AoyCo] ${endpoint} request failed`);
       return [];
     }
   }
