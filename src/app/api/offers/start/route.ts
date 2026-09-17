@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySessionCookie } from "@/lib/session";
-import { BitcotasksProvider, CpxResearchProvider, AffikeProvider } from "@/services/offerwall";
+import { AyocoProvider, BitcotasksProvider, CpxResearchProvider, AffikeProvider } from "@/services/offerwall";
 
 /**
  * POST /api/offers/start
@@ -38,7 +38,9 @@ export async function POST(request: NextRequest) {
   const userIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "0.0.0.0";
 
   const provider =
-    providerName === "cpx-research"
+    providerName === "ayoco"
+      ? new AyocoProvider()
+      : providerName === "cpx-research"
       ? new CpxResearchProvider()
       : providerName === "affike"
         ? new AffikeProvider()

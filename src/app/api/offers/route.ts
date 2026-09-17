@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySessionCookie } from "@/lib/session";
-import { BitcotasksProvider, CpxResearchProvider, AffikeProvider } from "@/services/offerwall";
+import { AyocoProvider, BitcotasksProvider, CpxResearchProvider, AffikeProvider } from "@/services/offerwall";
 import { getCompletedOffers, getDismissedOffers } from "@/lib/user-data";
 
 /**
@@ -18,13 +18,14 @@ export async function GET(request: NextRequest) {
   const userIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "0.0.0.0";
   const userId = user?.id ?? "guest";
 
-  const [bitcotasksOffers, cpxOffers, affikeOffers] = await Promise.all([
+  const [bitcotasksOffers, cpxOffers, affikeOffers, ayocoOffers] = await Promise.all([
     new BitcotasksProvider().getOffers(userId, userIp),
     new CpxResearchProvider().getOffers(userId, userIp),
     new AffikeProvider().getOffers(userId, userIp),
+    new AyocoProvider().getOffers(userId, userIp),
   ]);
 
-  const allOffers = [...bitcotasksOffers, ...cpxOffers, ...affikeOffers];
+  const allOffers = [...bitcotasksOffers, ...cpxOffers, ...affikeOffers, ...ayocoOffers];
 
   if (!user) {
     return NextResponse.json({ offers: allOffers });

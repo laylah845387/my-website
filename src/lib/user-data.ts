@@ -145,6 +145,29 @@ export async function getAffikeTransactions(
     .reverse();
 }
 
+export interface AyocoTransactionRecord {
+  userId: string;
+  points: number;
+  status: string;
+  offerId?: string | null;
+  credited?: boolean;
+}
+
+export async function markAyocoTransaction(
+  transactionId: string,
+  record: AyocoTransactionRecord
+): Promise<AyocoTransactionRecord | null> {
+  const redis = getRedis();
+  const key = "ayoco:transactions";
+  const previous = await redis.hget<AyocoTransactionRecord>(key, transactionId);
+  const nextRecord = {
+    ...record,
+    credited: record.credited ?? previous?.credited ?? false,
+  };
+  await redis.hset(key, { [transactionId]: nextRecord });
+  return previous ?? null;
+}
+
 /**
  * Marks an offer complete and credits points, unless it was already
  * completed by this account (SADD returns 0 if the member already
