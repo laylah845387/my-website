@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     "Complete tasks to earn points and redeem them for exclusive digital rewards on Giveaway Hub.",
   keywords: ["giveaway hub", "rewards", "offerwall", "points", "digital cosmetics"],
   other: {
-    "offerwall-verification": "ezg2DprQF7PTjbeGWh13hqaTCosUceWlia",
+    "offerwall-verification": "ezg2DprQF7PTjbeGWhl3hqaTCosuCeWa",
   },
 };
 
