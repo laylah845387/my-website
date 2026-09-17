@@ -102,7 +102,7 @@ export default function AffikeOfferPage() {
         }
 
         if (latestTransaction && /reject|declin|cancel|chargeback|revers|fraud/i.test(latestTransaction.status)) {
-          showToast("Affike reported that this offer was not approved.", "error");
+          showToast(`${offer.provider === "offerwall-me" ? "Offerwall.me" : "Affike"} reported that this offer was not approved.`, "error");
           return;
         }
 
@@ -113,7 +113,7 @@ export default function AffikeOfferPage() {
           showToast("Offer completed. Your points have been added.", "success");
         } else if (data.completed && latestTransaction?.status === "pending") {
           await refreshUserData();
-          showToast("Points added while Affike finishes verifying your offer.", "info");
+          showToast("Points added while the provider finishes verifying your offer.", "info");
         }
       } catch {
         // The next poll will retry while the provider processes the offer.
@@ -239,10 +239,10 @@ export default function AffikeOfferPage() {
             {trackingStarted && !completed ? (
               <p className="text-center text-xs leading-5 text-text-secondary">
                 {transactionStatus && /reject|declin|cancel|chargeback|revers|fraud/i.test(transactionStatus)
-                  ? "Affike did not approve this conversion."
+                  ? `${offer.provider === "offerwall-me" ? "Offerwall.me" : "Affike"} did not approve this conversion.`
                   : transactionStatus === "approved"
-                    ? "Affike approved the conversion. Refreshing your points..."
-                    : "Waiting for Affike to verify your completion. This can take a few minutes."}
+                    ? "The provider approved the conversion. Refreshing your points..."
+                    : "Waiting for the provider to verify your completion. This can take a few minutes."}
               </p>
             ) : null}
           </div>

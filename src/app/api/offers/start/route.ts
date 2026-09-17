@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySessionCookie } from "@/lib/session";
-import { AoycoProvider, BitcotasksProvider, CpxResearchProvider, AffikeProvider, OfferwallMeProvider } from "@/services/offerwall";
+import { BitcotasksProvider, CpxResearchProvider, AffikeProvider, OfferwallMeProvider } from "@/services/offerwall";
 
 /**
  * POST /api/offers/start
@@ -40,8 +40,6 @@ export async function POST(request: NextRequest) {
   const provider =
     providerName === "offerwall-me"
       ? new OfferwallMeProvider()
-      : providerName === "aoyco"
-      ? new AoycoProvider()
       : providerName === "cpx-research"
       ? new CpxResearchProvider()
       : providerName === "affike"

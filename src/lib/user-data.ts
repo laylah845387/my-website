@@ -145,29 +145,6 @@ export async function getAffikeTransactions(
     .reverse();
 }
 
-export interface AoycoTransactionRecord {
-  userId: string;
-  points: number;
-  status: string;
-  offerId?: string | null;
-  credited?: boolean;
-}
-
-export async function markAoycoTransaction(
-  transactionId: string,
-  record: AoycoTransactionRecord
-): Promise<AoycoTransactionRecord | null> {
-  const redis = getRedis();
-  const key = "aoyco:transactions";
-  const previous = await redis.hget<AoycoTransactionRecord>(key, transactionId);
-  const nextRecord = {
-    ...record,
-    credited: record.credited ?? previous?.credited ?? false,
-  };
-  await redis.hset(key, { [transactionId]: nextRecord });
-  return previous ?? null;
-}
-
 export interface OfferwallMeTransactionRecord {
   userId: string;
   points: number;

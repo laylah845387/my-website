@@ -169,7 +169,7 @@ export default function EarnPage() {
       return;
     }
 
-    if (offer.provider === "affike") {
+    if (offer.provider === "affike" || (offer.provider === "offerwall-me" && offer.type === "App Download")) {
       router.push(`/earn/affike/${encodeURIComponent(offer.id)}`);
       return;
     }

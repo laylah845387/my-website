@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySessionCookie } from "@/lib/session";
-import { AoycoProvider, BitcotasksProvider, CpxResearchProvider, AffikeProvider, OfferwallMeProvider } from "@/services/offerwall";
+import { BitcotasksProvider, CpxResearchProvider, AffikeProvider, OfferwallMeProvider } from "@/services/offerwall";
 import { getCompletedOffers, getDismissedOffers } from "@/lib/user-data";
 
 /**
@@ -18,17 +18,16 @@ export async function GET(request: NextRequest) {
   const userIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "0.0.0.0";
   const userId = user?.id ?? "guest";
 
-  const [bitcotasksOffers, cpxOffers, affikeOffers, aoycoOffers, offerwallMeOffers] = await Promise.all([
+  const [bitcotasksOffers, cpxOffers, affikeOffers, offerwallMeOffers] = await Promise.all([
     new BitcotasksProvider().getOffers(userId, userIp),
     new CpxResearchProvider().getOffers(userId, userIp),
     new AffikeProvider().getOffers(userId, userIp),
-    new AoycoProvider().getOffers(userId, userIp),
     new OfferwallMeProvider().getOffers(userId, userIp),
   ]);
 
   // Temporary testing order: keep Offerwall.me cards at the top until their
   // integration is verified, then return to the normal mixed ordering.
-  const allOffers = [...offerwallMeOffers, ...bitcotasksOffers, ...cpxOffers, ...affikeOffers, ...aoycoOffers];
+  const allOffers = [...offerwallMeOffers, ...bitcotasksOffers, ...cpxOffers, ...affikeOffers];
 
   if (!user) {
     return NextResponse.json({ offers: allOffers });

@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { Offer } from "@/types";
+import { Offer, OfferMilestone } from "@/types";
 import { getCountryForIp } from "@/lib/geo";
 import { OfferwallProvider } from "./types";
 
@@ -46,16 +46,26 @@ function normalize(raw: RawOffer, endpoint: Endpoint): Offer | null {
   const url = get(raw, "url", "link");
   const points = Math.round(Number(get(raw, "reward", "points")) || 0);
   if (!id || !title || !url || points <= 0) return null;
+  const milestones: OfferMilestone[] = Array.isArray(raw.steps)
+    ? raw.steps
+        .map((step: RawOffer, index: number) => ({
+          id: get(step, "id") || `${id}-step-${index + 1}`,
+          action: get(step, "label", "title", "name") || `Complete step ${index + 1}`,
+          points: Math.round(Number(get(step, "reward", "points")) || 0),
+        }))
+        .filter((step) => step.points > 0)
+    : [];
   return {
     id: `offerwall-me-${endpoint}-${id}`,
     type: typeFor(raw, endpoint),
-    duration: get(raw, "duration") ? `${get(raw, "duration")} SEC` : "VARIES",
+    duration: milestones.length > 0 ? `${milestones.length} STEP${milestones.length > 1 ? "S" : ""}` : get(raw, "duration") ? `${get(raw, "duration")} SEC` : "VARIES",
     points,
     rating: 5,
     title,
     description: get(raw, "description", "requirements"),
     provider: "offerwall-me",
     url,
+    milestones,
   };
 }
 
@@ -83,9 +93,11 @@ export class OfferwallMeProvider implements OfferwallProvider {
       if (!response.ok) return [];
       const payload = await response.json();
       if (String(payload?.status) !== "200") return [];
-      return (payload.data || [])
+      const offers = (payload.data || [])
         .map((raw: RawOffer) => normalize(raw, endpoint))
         .filter((offer: Offer | null): offer is Offer => !!offer);
+      console.log(`[Offerwall.me] ${endpoint}: ${offers.length} usable cards`);
+      return offers;
     } catch {
       return [];
     }
