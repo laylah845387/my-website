@@ -58,11 +58,13 @@ export class AoycoProvider implements OfferwallProvider {
         headers: {
           Authorization: `Bearer ${config.bearerToken}`,
           Accept: "application/json",
+          "User-UA": "Mozilla/5.0",
         },
         cache: "no-store",
       });
       if (!response.ok) {
-        console.error(`[AoyCo] ${endpoint} API returned HTTP ${response.status}`);
+        const errorBody = await response.text().catch(() => "");
+        console.error(`[AoyCo] ${endpoint} API returned HTTP ${response.status}: ${errorBody.slice(0, 300)}`);
         return [];
       }
 
