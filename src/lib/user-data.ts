@@ -168,6 +168,29 @@ export async function markAoycoTransaction(
   return previous ?? null;
 }
 
+export interface OfferwallMeTransactionRecord {
+  userId: string;
+  points: number;
+  status: string;
+  offerId?: string | null;
+  credited?: boolean;
+}
+
+export async function markOfferwallMeTransaction(
+  transactionId: string,
+  record: OfferwallMeTransactionRecord
+): Promise<OfferwallMeTransactionRecord | null> {
+  const redis = getRedis();
+  const key = "offerwall-me:transactions";
+  const previous = await redis.hget<OfferwallMeTransactionRecord>(key, transactionId);
+  const nextRecord = {
+    ...record,
+    credited: record.credited ?? previous?.credited ?? false,
+  };
+  await redis.hset(key, { [transactionId]: nextRecord });
+  return previous ?? null;
+}
+
 /**
  * Marks an offer complete and credits points, unless it was already
  * completed by this account (SADD returns 0 if the member already

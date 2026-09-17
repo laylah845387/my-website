@@ -23,9 +23,6 @@ export const metadata: Metadata = {
   description:
     "Complete tasks to earn points and redeem them for exclusive digital rewards on Giveaway Hub.",
   keywords: ["giveaway hub", "rewards", "offerwall", "points", "digital cosmetics"],
-  other: {
-    "offerwall-verification": "ezg2DprQF7PTjbeGWhl3hqaTCosuCeWa",
-  },
 };
 
 export default function RootLayout({
@@ -35,6 +32,16 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${inter.variable} ${oswald.variable}`}>
+      <head>
+        <meta
+          name="offerwall-verification"
+          content="ezg2DprQF7PTjbeGWhl3hqaTCosuCeWa"
+        />
+        <meta
+          name="offerwall-verification"
+          content="6aabc80f2561bc7407b8ba73"
+        />
+      </head>
       <body className="min-h-screen bg-bg text-text-primary font-body antialiased">
         <AppProvider>
           <Navbar />
