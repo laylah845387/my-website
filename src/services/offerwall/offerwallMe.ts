@@ -80,14 +80,28 @@ function normalize(raw: RawOffer, endpoint: Endpoint): Offer | null {
   if (!id || !title || !url || points <= 0) return null;
   const milestones: OfferMilestone[] = Array.isArray(raw.steps)
     ? raw.steps
-        .map((step: RawOffer, index: number) => ({
-          id: get(step, "id") || `${id}-step-${index + 1}`,
-          action: get(step, "label", "title", "name") || `Complete step ${index + 1}`,
-          points: Math.round(Number(get(step, "reward", "points")) || 0),
-          priority: /(before|within|day|days|purchase|payment|subscribe|subscription|deadline)/i.test(
-            get(step, "label", "title", "name", "description")
-          ),
-        }))
+        .map((step: RawOffer, index: number) => {
+          const label = get(step, "label", "title", "name") || `Complete step ${index + 1}`;
+          // Check ALL of the step's text together, not just whichever
+          // field happens to be non-empty first (get() only returns one)
+          // — a purchase or urgency cue can live in description even
+          // when label/title/name is already populated with something
+          // else, and would otherwise never get examined at all.
+          const stepText = `${label} ${get(step, "description")}`;
+          return {
+            id: get(step, "id") || `${id}-step-${index + 1}`,
+            action: label,
+            points: Math.round(Number(get(step, "reward", "points")) || 0),
+            // Flags real-money purchases (a literal "$X.XX" price, or the
+            // word "buy"/"purchase"/"spend"/"subscribe") and time-limited
+            // urgency ("within 3 days", "before Friday", "expires",
+            // "limited time", etc.) — both observed in real offer data as
+            // the two categories that actually deserve the flame.
+            priority: /(\$\d|\bbuy\b|purchase|payment|\bspend\b|subscri|\bbefore\b|\bwithin\b|deadline|expir|hurry|limited[\s-]?time|\bhours?\b|\bdays?\b|\bminutes?\b)/i.test(
+              stepText
+            ),
+          };
+        })
         .filter((step) => step.points > 0)
     : [];
   milestones.sort((first, second) => Number(second.priority) - Number(first.priority));

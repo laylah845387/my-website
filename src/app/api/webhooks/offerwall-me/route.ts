@@ -51,14 +51,18 @@ export async function POST(request: NextRequest) {
     return new NextResponse("ERROR: Invalid reward", { status: 200 });
   }
 
-  console.log("[Offerwall.me] Postback received", {
-    transactionId,
-    userId,
-    status,
-    reward: rewardRaw,
-    offerName: params.get("offer_name"),
-    offerType: params.get("offer_type"),
-  });
+  // Log EVERY param the postback actually sends, not just the ones we
+  // already know about — we need to see the real field name for "which
+  // offer" and "which specific step/milestone" this completion belongs
+  // to before per-checkpoint tracking can be built correctly. Guessing a
+  // field name here would silently cross off the wrong checkpoint (or
+  // none at all) if wrong, so this needs one real completion's data
+  // first. Once you've completed a real milestone, check Render's logs
+  // for this line and share it.
+  console.log(
+    "[Offerwall.me] Postback received — ALL params:",
+    Object.fromEntries(params.entries())
+  );
 
   const points = Math.round(reward);
   const previous = await markOfferwallMeTransaction(transactionId, {
