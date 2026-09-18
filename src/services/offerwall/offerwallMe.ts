@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { Offer, OfferMilestone } from "@/types";
 import { getCountryForIp } from "@/lib/geo";
+import { getOfferwallMeMilestoneRewards } from "@/lib/user-data";
 import { OfferwallProvider } from "./types";
 
 type RawOffer = Record<string, unknown>;
@@ -120,6 +121,47 @@ function normalize(raw: RawOffer, endpoint: Endpoint): Offer | null {
   };
 }
 
+/**
+ * Merges each user's real, webhook-confirmed milestone completions into
+ * the live offer data, and drops any offer entirely once every one of
+ * its milestones has been matched (same "disappears once truly done"
+ * behavior as every other provider).
+ *
+ * Matching is by reward amount rather than a step id, since offerwall.me
+ * never tells us which named step a postback belongs to — only the
+ * offer and the point value. Each completed-reward event is consumed
+ * from a pool as it's matched (not just checked for presence), so two
+ * milestones that happen to share the same point value don't both get
+ * marked done from a single real completion.
+ */
+async function applyMilestoneProgress(userId: string, offers: Offer[]): Promise<Offer[]> {
+  const enriched: Offer[] = [];
+
+  for (const offer of offers) {
+    if (!offer.milestones || offer.milestones.length === 0) {
+      enriched.push(offer);
+      continue;
+    }
+
+    const remainingPool = await getOfferwallMeMilestoneRewards(userId, offer.id);
+
+    const milestonesWithProgress = offer.milestones.map((milestone) => {
+      const poolIndex = remainingPool.indexOf(milestone.points);
+      if (poolIndex === -1) return milestone;
+      remainingPool.splice(poolIndex, 1);
+      return { ...milestone, completed: true };
+    });
+
+    if (milestonesWithProgress.every((m) => m.completed)) {
+      continue;
+    }
+
+    enriched.push({ ...offer, milestones: milestonesWithProgress });
+  }
+
+  return enriched;
+}
+
 export class OfferwallMeProvider implements OfferwallProvider {
   private async fetchEndpoint(endpoint: Endpoint, userId: string, userIp: string): Promise<Offer[]> {
     const settings = config();
@@ -180,7 +222,7 @@ export class OfferwallMeProvider implements OfferwallProvider {
       this.fetchEndpoint("api.php", userId, userIp),
       this.fetchEndpoint("slapi.php", userId, userIp),
     ]);
-    return results.flat();
+    return applyMilestoneProgress(userId, results.flat());
   }
 
   async getUserProgress(userId: string) {

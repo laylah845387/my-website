@@ -35,6 +35,7 @@ export type OfferMilestone = {
   action: string;
   points: number;
   priority?: boolean;
+  completed?: boolean;
 };
 
 export type Order = {

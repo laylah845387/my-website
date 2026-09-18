@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { adjustPoints, markOfferwallMeTransaction } from "@/lib/user-data";
+import { adjustPoints, markOfferwallMeTransaction, recordOfferwallMeMilestone } from "@/lib/user-data";
 
 function md5(value: string): string {
   return crypto.createHash("md5").update(value).digest("hex");
@@ -65,11 +65,23 @@ export async function POST(request: NextRequest) {
   );
 
   const points = Math.round(reward);
+
+  // Reconstruct the same offer id normalize() builds in offerwallMe.ts
+  // ("offerwall-me-offerapi.php-provider:campaign_id"), so a completed
+  // milestone here can be matched against that offer's live steps by
+  // reward amount. Multi-step offers only ever come from offerapi.php
+  // (PTC/shortlink offers have no steps concept), so that endpoint is
+  // safe to assume here even though the postback doesn't say which
+  // endpoint the offer came from.
+  const provider = params.get("provider");
+  const campaignId = params.get("campaign_id");
+  const offerId = provider && campaignId ? `offerwall-me-offerapi.php-${provider}:${campaignId}` : null;
+
   const previous = await markOfferwallMeTransaction(transactionId, {
     userId,
     points,
     status,
-    offerId: null,
+    offerId,
   });
 
   if (previous) {
@@ -82,9 +94,12 @@ export async function POST(request: NextRequest) {
         userId,
         points,
         status,
-        offerId: null,
+        offerId,
         credited: true,
       });
+      if (offerId) {
+        await recordOfferwallMeMilestone(userId, offerId, points, transactionId);
+      }
     }
     return new NextResponse("ok", { status: 200 });
   }
@@ -95,9 +110,12 @@ export async function POST(request: NextRequest) {
       userId,
       points,
       status,
-      offerId: null,
+      offerId,
       credited: true,
     });
+    if (offerId) {
+      await recordOfferwallMeMilestone(userId, offerId, points, transactionId);
+    }
   }
 
   return new NextResponse("ok", { status: 200 });

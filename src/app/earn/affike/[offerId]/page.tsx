@@ -203,33 +203,36 @@ export default function AffikeOfferPage() {
               </div>
               {milestones.length > 0 ? (
                 <div className="divide-y divide-border border-y border-border">
-                  {milestones.map((milestone, index) => (
-                    <div key={milestone.id || index} className="flex items-center justify-between gap-5 py-4">
-                      <p
-                        className={`flex min-w-0 items-center gap-2 text-sm leading-5 ${
-                          completed ? "text-text-secondary line-through decoration-2" : "text-text-primary"
-                        }`}
-                      >
-                        {completed ? (
-                          <CheckCircle2 size={15} className="shrink-0 text-accent-green" aria-label="Completed" />
-                        ) : milestone.priority ? (
-                          <Flame size={15} className="shrink-0 text-orange-400" aria-label="Important requirement" />
-                        ) : null}
-                        {milestone.action}
-                      </p>
-                      <p
-                        className={`shrink-0 text-sm font-bold ${
-                          completed
-                            ? "text-text-secondary line-through"
-                            : milestone.priority
-                              ? "text-orange-400"
-                              : "text-accent-green"
-                        }`}
-                      >
-                        +{milestone.points}
-                      </p>
-                    </div>
-                  ))}
+                  {milestones.map((milestone, index) => {
+                    const milestoneDone = completed || milestone.completed;
+                    return (
+                      <div key={milestone.id || index} className="flex items-center justify-between gap-5 py-4">
+                        <p
+                          className={`flex min-w-0 items-center gap-2 text-sm leading-5 ${
+                            milestoneDone ? "text-text-secondary line-through decoration-2" : "text-text-primary"
+                          }`}
+                        >
+                          {milestoneDone ? (
+                            <CheckCircle2 size={15} className="shrink-0 text-accent-green" aria-label="Completed" />
+                          ) : milestone.priority ? (
+                            <Flame size={15} className="shrink-0 text-orange-400" aria-label="Important requirement" />
+                          ) : null}
+                          {milestone.action}
+                        </p>
+                        <p
+                          className={`shrink-0 text-sm font-bold ${
+                            milestoneDone
+                              ? "text-text-secondary line-through"
+                              : milestone.priority
+                                ? "text-orange-400"
+                                : "text-accent-green"
+                          }`}
+                        >
+                          +{milestone.points}
+                        </p>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="border-y border-border py-4 text-sm leading-6 text-text-secondary">
@@ -257,7 +260,9 @@ export default function AffikeOfferPage() {
                   ? "Offer opened in a new tab"
                   : starting
                     ? "Opening offer..."
-                    : "Start offer"}
+                    : milestones.some((m) => m.completed)
+                      ? "Continue offer"
+                      : "Start offer"}
             </button>
           </div>
         </div>

@@ -218,9 +218,13 @@ export default function EarnPage() {
     }
   };
 
-  const continueOffers = startedCpxOffers.filter(
-    (offer) => !visibleCompleted.includes(offer.id)
+  const milestoneProgressOffers = offers.filter((offer) =>
+    offer.milestones?.some((milestone) => milestone.completed)
   );
+  const continueOffers = [
+    ...startedCpxOffers.filter((offer) => !visibleCompleted.includes(offer.id)),
+    ...milestoneProgressOffers,
+  ];
   const continueOfferIds = new Set(continueOffers.map((offer) => offer.id));
   const newOffers = offers.filter((offer) => !continueOfferIds.has(offer.id));
 

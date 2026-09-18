@@ -169,6 +169,49 @@ export async function markOfferwallMeTransaction(
 }
 
 /**
+ * offerwall.me's postback tells us which offer and how many points a
+ * completed step was worth, but never which named step — so we record
+ * the raw {reward, transactionId} here, keyed by offer, and match it
+ * against that offer's live steps by reward amount when displaying it
+ * (each step's payout is unique within an offer in practice, so this is
+ * a reliable match without offerwall.me giving us an explicit step id).
+ *
+ * Known limitation: if a postback for this same reward+offer is later
+ * reversed (a chargeback), the matching milestone stays marked complete
+ * in the UI — we don't currently un-cross a checkpoint on reversal. Rare
+ * in practice and not worth the added complexity right now.
+ */
+export async function recordOfferwallMeMilestone(
+  discordId: string,
+  offerId: string,
+  reward: number,
+  transactionId: string
+): Promise<void> {
+  const redis = getRedis();
+  await redis.sadd(
+    `user:${discordId}:offerwall-me-milestones:${offerId}`,
+    JSON.stringify({ reward, transactionId })
+  );
+}
+
+export async function getOfferwallMeMilestoneRewards(
+  discordId: string,
+  offerId: string
+): Promise<number[]> {
+  const redis = getRedis();
+  const raw = await redis.smembers(`user:${discordId}:offerwall-me-milestones:${offerId}`);
+  return (raw ?? [])
+    .map((entry) => {
+      try {
+        return Number(JSON.parse(entry).reward);
+      } catch {
+        return NaN;
+      }
+    })
+    .filter((n) => Number.isFinite(n));
+}
+
+/**
  * Marks an offer complete and credits points, unless it was already
  * completed by this account (SADD returns 0 if the member already
  * existed in the set, which we use to detect that atomically).
