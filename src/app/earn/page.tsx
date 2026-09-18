@@ -219,6 +219,8 @@ export default function EarnPage() {
   };
 
   const milestoneProgressOffers = offers.filter((offer) =>
+    offer.provider === "offerwall-me" &&
+    offer.type === "App Download" &&
     offer.milestones?.some((milestone) => milestone.completed)
   );
   const continueOffers = [

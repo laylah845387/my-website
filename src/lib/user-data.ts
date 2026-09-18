@@ -119,6 +119,7 @@ export async function markAffikeTransaction(
   const previous = await redis.hget<AffikeTransactionRecord>(key, txnId);
   const nextRecord = {
     ...record,
+    offerId: record.offerId ?? previous?.offerId ?? null,
     credited: record.credited ?? previous?.credited ?? false,
   };
   await redis.hset(key, { [txnId]: nextRecord });
@@ -189,6 +190,19 @@ export async function recordOfferwallMeMilestone(
 ): Promise<void> {
   const redis = getRedis();
   await redis.sadd(
+    `user:${discordId}:offerwall-me-milestones:${offerId}`,
+    JSON.stringify({ reward, transactionId })
+  );
+}
+
+export async function removeOfferwallMeMilestone(
+  discordId: string,
+  offerId: string,
+  reward: number,
+  transactionId: string
+): Promise<void> {
+  const redis = getRedis();
+  await redis.srem(
     `user:${discordId}:offerwall-me-milestones:${offerId}`,
     JSON.stringify({ reward, transactionId })
   );

@@ -96,6 +96,21 @@ export default function AffikeOfferPage() {
         const data = await response.json();
         const latestTransaction = data.affikeTransactions?.[0];
 
+        const offersResponse = await fetch("/api/offers", { cache: "no-store" });
+        if (offersResponse.ok && !cancelled) {
+          const offersData = await offersResponse.json();
+          const refreshedOffer = (offersData.offers ?? []).find((item: Offer) => item.id === offer.id);
+          if (refreshedOffer) {
+            setOffer(refreshedOffer);
+          } else if (offer.provider === "offerwall-me") {
+            setOffer({
+              ...offer,
+              milestones: offer.milestones?.map((milestone) => ({ ...milestone, completed: true })),
+            });
+            setCompleted(true);
+          }
+        }
+
         if (latestTransaction && /reject|declin|cancel|chargeback|revers|fraud/i.test(latestTransaction.status)) {
           showToast(`${offer.provider === "offerwall-me" ? "Offerwall.me" : "Affike"} reported that this offer was not approved.`, "error");
           return;

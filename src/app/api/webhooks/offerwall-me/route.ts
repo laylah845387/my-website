@@ -1,9 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { adjustPoints, markOfferwallMeTransaction, recordOfferwallMeMilestone } from "@/lib/user-data";
+import {
+  adjustPoints,
+  markOfferwallMeTransaction,
+  recordOfferwallMeMilestone,
+  removeOfferwallMeMilestone,
+} from "@/lib/user-data";
 
 function md5(value: string): string {
   return crypto.createHash("md5").update(value).digest("hex");
+}
+
+function getOfferIds(params: URLSearchParams): string[] {
+  const provider = params.get("provider") || params.get("offer_provider") || "";
+  const rawIds = [
+    params.get("offerId"),
+    params.get("offer_id"),
+    params.get("offer"),
+    params.get("campaign_id"),
+    params.get("campaignId"),
+    params.get("campaign"),
+    params.get("cid"),
+  ].filter((value): value is string => Boolean(value?.trim()));
+
+  return [...new Set(rawIds.flatMap((rawId) => {
+    if (rawId.startsWith("offerwall-me-")) return [rawId];
+
+    const normalizedRawId = rawId.includes(":") || !provider
+      ? rawId
+      : `${provider}:${rawId}`;
+    return [
+      `offerwall-me-offerapi.php-${normalizedRawId}`,
+      rawId.includes(":") ? `offerwall-me-offerapi.php-${rawId}` : "",
+    ].filter(Boolean);
+  }))];
 }
 
 async function readParams(request: NextRequest): Promise<URLSearchParams> {
@@ -66,16 +96,8 @@ export async function POST(request: NextRequest) {
 
   const points = Math.round(reward);
 
-  // Reconstruct the same offer id normalize() builds in offerwallMe.ts
-  // ("offerwall-me-offerapi.php-provider:campaign_id"), so a completed
-  // milestone here can be matched against that offer's live steps by
-  // reward amount. Multi-step offers only ever come from offerapi.php
-  // (PTC/shortlink offers have no steps concept), so that endpoint is
-  // safe to assume here even though the postback doesn't say which
-  // endpoint the offer came from.
-  const provider = params.get("provider");
-  const campaignId = params.get("campaign_id");
-  const offerId = provider && campaignId ? `offerwall-me-offerapi.php-${provider}:${campaignId}` : null;
+  const offerIds = getOfferIds(params);
+  const offerId = offerIds[0] ?? null;
 
   const previous = await markOfferwallMeTransaction(transactionId, {
     userId,
@@ -88,6 +110,14 @@ export async function POST(request: NextRequest) {
     if (status === "2" && previous.credited) {
       await adjustPoints(previous.userId, -previous.points);
       await markOfferwallMeTransaction(transactionId, { ...previous, status, credited: false });
+      if (previous.offerId) {
+        await removeOfferwallMeMilestone(previous.userId, previous.offerId, previous.points, transactionId);
+      }
+      await Promise.all(
+        offerIds
+          .filter((id) => id !== previous.offerId)
+          .map((id) => removeOfferwallMeMilestone(previous.userId, id, previous.points, transactionId))
+      );
     } else if (status === "1" && !previous.credited) {
       await adjustPoints(userId, points);
       await markOfferwallMeTransaction(transactionId, {
@@ -97,9 +127,7 @@ export async function POST(request: NextRequest) {
         offerId,
         credited: true,
       });
-      if (offerId) {
-        await recordOfferwallMeMilestone(userId, offerId, points, transactionId);
-      }
+      await Promise.all(offerIds.map((id) => recordOfferwallMeMilestone(userId, id, points, transactionId)));
     }
     return new NextResponse("ok", { status: 200 });
   }
@@ -113,9 +141,7 @@ export async function POST(request: NextRequest) {
       offerId,
       credited: true,
     });
-    if (offerId) {
-      await recordOfferwallMeMilestone(userId, offerId, points, transactionId);
-    }
+    await Promise.all(offerIds.map((id) => recordOfferwallMeMilestone(userId, id, points, transactionId)));
   }
 
   return new NextResponse("ok", { status: 200 });
