@@ -254,7 +254,7 @@ export default function AffikeOfferPage() {
               {completed
                 ? "Offer completed"
                 : trackingStarted
-                  ? "Offer opened in new tab"
+                  ? "Offer opened in a new tab"
                   : starting
                     ? "Opening offer..."
                     : "Start offer"}

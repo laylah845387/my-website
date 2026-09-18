@@ -144,6 +144,22 @@ export class OfferwallMeProvider implements OfferwallProvider {
       if (!response.ok) return [];
       const payload = await response.json();
       if (String(payload?.status) !== "200") return [];
+
+      // One-time sample log: print the full raw JSON of the first offer
+      // that has multiple steps, so we can see every field offerwall.me
+      // actually sends per step — specifically whether there's an exact
+      // event/step identifier we can match a postback's event_name
+      // against, instead of fuzzy-matching text.
+      const sampleWithSteps = (payload.data || []).find(
+        (raw: RawOffer) => Array.isArray(raw.steps) && raw.steps.length > 1
+      );
+      if (sampleWithSteps) {
+        console.log(
+          `[Offerwall.me] ${endpoint}: sample multi-step offer raw JSON:`,
+          JSON.stringify(sampleWithSteps)
+        );
+      }
+
       const offers = (payload.data || [])
         .map((raw: RawOffer) => normalize(raw, endpoint))
         .filter((offer: Offer | null): offer is Offer => !!offer);
