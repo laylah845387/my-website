@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, CheckCircle2, ExternalLink, Gift, ListChecks } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ExternalLink, Flame, Gift, ListChecks } from "lucide-react";
 import { useApp } from "@/lib/store";
 import { Offer } from "@/types";
 import PageContainer from "@/components/PageContainer";
@@ -210,7 +210,10 @@ export default function AffikeOfferPage() {
                 <div className="divide-y divide-border border-y border-border">
                   {milestones.map((milestone, index) => (
                     <div key={milestone.id || index} className="flex items-center justify-between gap-5 py-4">
-                      <p className="min-w-0 text-sm leading-5 text-text-primary">{milestone.action}</p>
+                      <p className="flex min-w-0 items-center gap-2 text-sm leading-5 text-text-primary">
+                        {milestone.priority ? <Flame size={15} className="shrink-0 text-orange-400" aria-label="Important requirement" /> : null}
+                        {milestone.action}
+                      </p>
                       <p className="shrink-0 text-sm font-bold text-accent-green">+{milestone.points}</p>
                     </div>
                   ))}
@@ -221,6 +224,13 @@ export default function AffikeOfferPage() {
                 </p>
               )}
             </div>
+
+            {offer.qrCodeUrl ? (
+              <div className="border-y border-border py-5">
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-text-primary">Scan to continue</p>
+                <img src={offer.qrCodeUrl} alt="Offer QR code" className="h-40 w-40 rounded bg-white p-2" />
+              </div>
+            ) : null}
 
             <button
               onClick={startOffer}

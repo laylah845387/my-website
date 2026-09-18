@@ -27,12 +27,14 @@ export type Offer = {
   provider?: string;
   url?: string;
   milestones?: OfferMilestone[];
+  qrCodeUrl?: string;
 };
 
 export type OfferMilestone = {
   id: string;
   action: string;
   points: number;
+  priority?: boolean;
 };
 
 export type Order = {

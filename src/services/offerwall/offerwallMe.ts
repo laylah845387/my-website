@@ -34,6 +34,7 @@ function typeFor(raw: RawOffer, endpoint: Endpoint): string {
   if (explicit === "survey" || explicit === "surveys") return "Survey";
   const text = `${get(raw, "title", "name", "offer_name")} ${get(raw, "description")}`.toLowerCase();
   const devices = get(raw, "devices").toLowerCase();
+  if (/(register|sign up|signup|email|account|submit your information)/.test(text)) return "Sign Up";
   if (/(install|download|app|game|play|castle|puzzle|simulator)/.test(text) || /android|mobile/.test(devices) || (Array.isArray(raw.steps) && raw.steps.length > 0)) {
     return "App Download";
   }
@@ -52,9 +53,13 @@ function normalize(raw: RawOffer, endpoint: Endpoint): Offer | null {
           id: get(step, "id") || `${id}-step-${index + 1}`,
           action: get(step, "label", "title", "name") || `Complete step ${index + 1}`,
           points: Math.round(Number(get(step, "reward", "points")) || 0),
+          priority: /(before|within|day|days|purchase|payment|subscribe|subscription|deadline)/i.test(
+            get(step, "label", "title", "name", "description")
+          ),
         }))
         .filter((step) => step.points > 0)
     : [];
+  milestones.sort((first, second) => Number(second.priority) - Number(first.priority));
   return {
     id: `offerwall-me-${endpoint}-${id}`,
     type: typeFor(raw, endpoint),
@@ -66,6 +71,7 @@ function normalize(raw: RawOffer, endpoint: Endpoint): Offer | null {
     provider: "offerwall-me",
     url,
     milestones,
+    qrCodeUrl: get(raw, "qr_code", "qrCode", "qr_url", "qrUrl") || undefined,
   };
 }
 
@@ -96,7 +102,11 @@ export class OfferwallMeProvider implements OfferwallProvider {
       const offers = (payload.data || [])
         .map((raw: RawOffer) => normalize(raw, endpoint))
         .filter((offer: Offer | null): offer is Offer => !!offer);
-      console.log(`[Offerwall.me] ${endpoint}: ${offers.length} usable cards`);
+      const surveyCount = offers.filter((offer: Offer) => offer.type === "Survey").length;
+      const visitCount = offers.filter((offer: Offer) => offer.type === "Visit & Earn").length;
+      const appCount = offers.filter((offer: Offer) => offer.type === "App Download").length;
+      const signUpCount = offers.filter((offer: Offer) => offer.type === "Sign Up").length;
+      console.log(`[Offerwall.me] ${endpoint}: ${offers.length} usable cards (surveys=${surveyCount}, visit=${visitCount}, apps=${appCount}, signups=${signUpCount})`);
       return offers;
     } catch {
       return [];
