@@ -11,6 +11,11 @@ interface OfferCardProps {
 }
 
 export default function OfferCard({ offer, onSelect, completed, active }: OfferCardProps) {
+  // Some providers put a 🔥 directly in an offer's own title text to
+  // flag it as hot/trending — when that's present, color the points to
+  // match rather than the usual green.
+  const isHot = offer.title?.includes("🔥") ?? false;
+
   return (
     <button
       onClick={() => onSelect(offer)}
@@ -32,7 +37,7 @@ export default function OfferCard({ offer, onSelect, completed, active }: OfferC
 
       {/* 2. Points */}
       <div className="flex items-baseline gap-1.5">
-        <span className="text-2xl font-bold text-accent-green font-heading">
+        <span className={`text-2xl font-bold font-heading ${isHot ? "text-orange-400" : "text-accent-green"}`}>
           {offer.points}
         </span>
         <span className="text-[12px] font-semibold tracking-[0.08em] text-text-primary uppercase">

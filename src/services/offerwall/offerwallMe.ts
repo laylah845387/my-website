@@ -28,10 +28,43 @@ function signedIdentity(publicKey: string, userId: string, secret: string) {
   return { expires, signature };
 }
 
+function normalizeExplicitType(explicit: string): string | null {
+  if (!explicit) return null;
+  if (/survey/.test(explicit)) return "Survey";
+  if (/sign[_ -]?up|registration/.test(explicit)) return "Sign Up";
+  if (/app|install|game|mobile/.test(explicit)) return "App Download";
+  if (/visit|click/.test(explicit)) return "Visit & Earn";
+  return null;
+}
+
 function typeFor(raw: RawOffer, endpoint: Endpoint): string {
   if (endpoint === "api.php" || endpoint === "slapi.php") return "Visit & Earn";
-  const explicit = get(raw, "offer_type", "type", "category").toLowerCase();
-  if (explicit === "survey" || explicit === "surveys") return "Survey";
+
+  // Trust offerwall.me's own category field first — this is their real,
+  // provider-stated type, not a guess. Only fall back to keyword-sniffing
+  // the title/description below if they didn't give us one at all.
+  const explicitRaw = get(raw, "offer_type", "type", "category").toLowerCase();
+  const mapped = normalizeExplicitType(explicitRaw);
+  if (mapped) return mapped;
+
+  if (explicitRaw) {
+    // They gave us a category, just not one of our four known buckets —
+    // show their actual value instead of silently guessing from text, and
+    // log it once so we can add proper handling once we see what it is.
+    console.warn(
+      `[Offerwall.me] Unrecognized offer_type/category value: ${JSON.stringify(explicitRaw)} for offer "${get(
+        raw,
+        "title",
+        "name",
+        "offer_name"
+      )}"`
+    );
+    return explicitRaw.replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  // No category field from offerwall.me at all — last-resort guess from
+  // the offer's own text, only reached when they gave us nothing to
+  // trust instead.
   const text = `${get(raw, "title", "name", "offer_name")} ${get(raw, "description")}`.toLowerCase();
   const devices = get(raw, "devices").toLowerCase();
   if (/(register|sign up|signup|email|account|submit your information)/.test(text)) return "Sign Up";

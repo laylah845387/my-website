@@ -19,7 +19,6 @@ export default function AffikeOfferPage() {
   const [redirectNoticeOpen, setRedirectNoticeOpen] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [trackingStarted, setTrackingStarted] = useState(false);
-  const [transactionStatus, setTransactionStatus] = useState<string | null>(null);
 
   useEffect(() => {
     const offerId = params.offerId ? decodeURIComponent(params.offerId) : "";
@@ -71,7 +70,6 @@ export default function AffikeOfferPage() {
       if (data.redirectUrl) {
         window.open(data.redirectUrl, "_blank", "noopener,noreferrer");
         setTrackingStarted(true);
-        setTransactionStatus("pending");
         setRedirectNoticeOpen(true);
       } else {
         showToast("Couldn't start this offer right now. Please try again in a moment.", "error");
@@ -97,9 +95,6 @@ export default function AffikeOfferPage() {
 
         const data = await response.json();
         const latestTransaction = data.affikeTransactions?.[0];
-        if (latestTransaction?.status) {
-          setTransactionStatus(latestTransaction.status);
-        }
 
         if (latestTransaction && /reject|declin|cancel|chargeback|revers|fraud/i.test(latestTransaction.status)) {
           showToast(`${offer.provider === "offerwall-me" ? "Offerwall.me" : "Affike"} reported that this offer was not approved.`, "error");
@@ -210,11 +205,25 @@ export default function AffikeOfferPage() {
                 <div className="divide-y divide-border border-y border-border">
                   {milestones.map((milestone, index) => (
                     <div key={milestone.id || index} className="flex items-center justify-between gap-5 py-4">
-                      <p className="flex min-w-0 items-center gap-2 text-sm leading-5 text-text-primary">
-                        {milestone.priority ? <Flame size={15} className="shrink-0 text-orange-400" aria-label="Important requirement" /> : null}
+                      <p
+                        className={`flex min-w-0 items-center gap-2 text-sm leading-5 ${
+                          completed ? "text-text-secondary line-through decoration-2" : "text-text-primary"
+                        }`}
+                      >
+                        {completed ? (
+                          <CheckCircle2 size={15} className="shrink-0 text-accent-green" aria-label="Completed" />
+                        ) : milestone.priority ? (
+                          <Flame size={15} className="shrink-0 text-orange-400" aria-label="Important requirement" />
+                        ) : null}
                         {milestone.action}
                       </p>
-                      <p className="shrink-0 text-sm font-bold text-accent-green">+{milestone.points}</p>
+                      <p
+                        className={`shrink-0 text-sm font-bold ${
+                          completed ? "text-text-secondary line-through" : "text-accent-green"
+                        }`}
+                      >
+                        +{milestone.points}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -241,20 +250,11 @@ export default function AffikeOfferPage() {
               {completed
                 ? "Offer completed"
                 : trackingStarted
-                  ? "Verification pending"
+                  ? "Offer opened in new tab"
                   : starting
                     ? "Opening offer..."
                     : "Start offer"}
             </button>
-            {trackingStarted && !completed ? (
-              <p className="text-center text-xs leading-5 text-text-secondary">
-                {transactionStatus && /reject|declin|cancel|chargeback|revers|fraud/i.test(transactionStatus)
-                  ? `${offer.provider === "offerwall-me" ? "Offerwall.me" : "Affike"} did not approve this conversion.`
-                  : transactionStatus === "approved"
-                    ? "The provider approved the conversion. Refreshing your points..."
-                    : "Waiting for the provider to verify your completion. This can take a few minutes."}
-              </p>
-            ) : null}
           </div>
         </div>
       </div>
