@@ -28,49 +28,47 @@ function signedIdentity(publicKey: string, userId: string, secret: string) {
   return { expires, signature };
 }
 
-function normalizeExplicitType(explicit: string): string | null {
-  if (!explicit) return null;
-  if (/survey/.test(explicit)) return "Survey";
-  if (/sign[_ -]?up|registration/.test(explicit)) return "Sign Up";
-  if (/app|install|game|mobile/.test(explicit)) return "App Download";
-  if (/visit|click/.test(explicit)) return "Visit & Earn";
-  return null;
-}
-
 function typeFor(raw: RawOffer, endpoint: Endpoint): string {
   if (endpoint === "api.php" || endpoint === "slapi.php") return "Visit & Earn";
 
-  // Trust offerwall.me's own category field first — this is their real,
-  // provider-stated type, not a guess. Only fall back to keyword-sniffing
-  // the title/description below if they didn't give us one at all.
+  // Trusting offerwall.me's own offer_type/category field turned out to
+  // be unreliable in practice — their per-advertiser tagging is too
+  // inconsistent to use directly for App vs Sign Up. Survey is the one
+  // value that's held up, so that's the only thing still trusted
+  // straight from their field. Everything else uses signals actually
+  // observed in their real data, in order of how confident each one is:
+  //   1. A literal price tag ("$X.XX") in the title — these are
+  //      purchase-based lead/signup flows, not app installs.
+  //   2. The word "signup"/"sign up" anywhere in the title or
+  //      description.
+  //   3. Clear install/app/game keywords, or a mobile/android/ios
+  //      device tag — a real app-download signal.
+  //   4. Only when NONE of the above give a signal: step count as a
+  //      last resort (single-step offers tend to be Sign Ups, multi-step
+  //      ones tend to be Apps) — weakest signal, so it only applies once
+  //      everything stronger has been ruled out.
   const explicitRaw = get(raw, "offer_type", "type", "category").toLowerCase();
-  const mapped = normalizeExplicitType(explicitRaw);
-  if (mapped) return mapped;
+  if (/survey/.test(explicitRaw)) return "Survey";
 
-  if (explicitRaw) {
-    // They gave us a category, just not one of our four known buckets —
-    // show their actual value instead of silently guessing from text, and
-    // log it once so we can add proper handling once we see what it is.
-    console.warn(
-      `[Offerwall.me] Unrecognized offer_type/category value: ${JSON.stringify(explicitRaw)} for offer "${get(
-        raw,
-        "title",
-        "name",
-        "offer_name"
-      )}"`
-    );
-    return explicitRaw.replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-  }
-
-  // No category field from offerwall.me at all — last-resort guess from
-  // the offer's own text, only reached when they gave us nothing to
-  // trust instead.
-  const text = `${get(raw, "title", "name", "offer_name")} ${get(raw, "description")}`.toLowerCase();
+  const title = get(raw, "title", "name", "offer_name");
+  const description = get(raw, "description");
+  const text = `${title} ${description}`.toLowerCase();
   const devices = get(raw, "devices").toLowerCase();
-  if (/(register|sign up|signup|email|account|submit your information)/.test(text)) return "Sign Up";
-  if (/(install|download|app|game|play|castle|puzzle|simulator)/.test(text) || /android|mobile/.test(devices) || (Array.isArray(raw.steps) && raw.steps.length > 0)) {
+  const stepCount = Array.isArray(raw.steps) ? raw.steps.length : 0;
+
+  if (/\$\d/.test(title)) return "Sign Up";
+  if (/sign[\s-]?up/.test(text)) return "Sign Up";
+
+  if (
+    /(install|download|app|game|play|castle|puzzle|simulator)/.test(text) ||
+    /android|mobile|ios/.test(devices)
+  ) {
     return "App Download";
   }
+
+  if (stepCount === 1) return "Sign Up";
+  if (stepCount > 1) return "App Download";
+
   return "Offer";
 }
 

@@ -219,7 +219,11 @@ export default function AffikeOfferPage() {
                       </p>
                       <p
                         className={`shrink-0 text-sm font-bold ${
-                          completed ? "text-text-secondary line-through" : "text-accent-green"
+                          completed
+                            ? "text-text-secondary line-through"
+                            : milestone.priority
+                              ? "text-orange-400"
+                              : "text-accent-green"
                         }`}
                       >
                         +{milestone.points}
