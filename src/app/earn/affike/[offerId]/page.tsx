@@ -22,7 +22,7 @@ export default function AffikeOfferPage() {
   const [transactionStatus, setTransactionStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    const offerId = params.offerId;
+    const offerId = params.offerId ? decodeURIComponent(params.offerId) : "";
     if (!offerId) return;
 
     let cancelled = false;

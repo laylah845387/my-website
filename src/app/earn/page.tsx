@@ -170,7 +170,8 @@ export default function EarnPage() {
     }
 
     if (offer.provider === "affike" || (offer.provider === "offerwall-me" && offer.type === "App Download")) {
-      router.push(`/earn/affike/${encodeURIComponent(offer.id)}`);
+      const detailsPath = offer.provider === "offerwall-me" ? "/earn/offer" : "/earn/affike";
+      router.push(`${detailsPath}/${encodeURIComponent(offer.id)}`);
       return;
     }
 
