@@ -15,12 +15,17 @@ function getOfferIds(params: URLSearchParams): string[] {
   const provider = params.get("provider") || params.get("offer_provider") || "";
   const rawIds = [
     params.get("offerId"),
+    params.get("offerid"),
+    params.get("offerID"),
     params.get("offer_id"),
     params.get("offer"),
     params.get("campaign_id"),
     params.get("campaignId"),
+    params.get("campaignid"),
     params.get("campaign"),
     params.get("cid"),
+    params.get("task_id"),
+    params.get("taskId"),
   ].filter((value): value is string => Boolean(value?.trim()));
 
   return [...new Set(rawIds.flatMap((rawId) => {
@@ -127,6 +132,10 @@ export async function POST(request: NextRequest) {
         offerId,
         credited: true,
       });
+      await Promise.all(offerIds.map((id) => recordOfferwallMeMilestone(userId, id, points, transactionId)));
+    } else if (status === "1" && previous.credited && offerIds.length > 0) {
+      // A retry may contain the offer ID even when the original credit did
+      // not. Keep the point credit idempotent, but backfill milestone state.
       await Promise.all(offerIds.map((id) => recordOfferwallMeMilestone(userId, id, points, transactionId)));
     }
     return new NextResponse("ok", { status: 200 });

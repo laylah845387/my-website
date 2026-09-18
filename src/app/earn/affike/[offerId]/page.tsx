@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, CheckCircle2, ExternalLink, Flame, Gift, ListChecks } from "lucide-react";
 import { useApp } from "@/lib/store";
@@ -9,19 +9,34 @@ import PageContainer from "@/components/PageContainer";
 import LoadingState from "@/components/LoadingState";
 import RedirectNoticeModal from "@/components/RedirectNoticeModal";
 
+const OFFER_DETAILS_CACHE_PREFIX = "offer-details-cache:";
+
+function readCachedOffer(offerId: string): Offer | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const cached = window.sessionStorage.getItem(`${OFFER_DETAILS_CACHE_PREFIX}${offerId}`);
+    const parsed = cached ? JSON.parse(cached) as Offer : null;
+    return parsed?.id === offerId ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function AffikeOfferPage() {
   const router = useRouter();
   const params = useParams<{ offerId: string }>();
+  const offerId = params.offerId ? decodeURIComponent(params.offerId) : "";
   const { session, login, refreshUserData, showToast } = useApp();
-  const [offer, setOffer] = useState<Offer | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [offer, setOffer] = useState<Offer | null>(() => readCachedOffer(offerId));
+  const [loading, setLoading] = useState(() => !readCachedOffer(offerId));
+  const hasCachedOffer = useRef(Boolean(offer));
   const [starting, setStarting] = useState(false);
   const [redirectNoticeOpen, setRedirectNoticeOpen] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [trackingStarted, setTrackingStarted] = useState(false);
 
   useEffect(() => {
-    const offerId = params.offerId ? decodeURIComponent(params.offerId) : "";
     if (!offerId) return;
 
     let cancelled = false;
@@ -29,7 +44,13 @@ export default function AffikeOfferPage() {
       .then((response) => response.json())
       .then((data) => {
         if (!cancelled) {
-          setOffer((data.offers ?? []).find((item: Offer) => item.id === offerId) ?? null);
+          const liveOffer = (data.offers ?? []).find((item: Offer) => item.id === offerId) ?? null;
+          if (liveOffer) {
+            setOffer(liveOffer);
+            window.sessionStorage.setItem(`${OFFER_DETAILS_CACHE_PREFIX}${offerId}`, JSON.stringify(liveOffer));
+          } else if (!hasCachedOffer.current) {
+            setOffer(null);
+          }
         }
       })
       .catch(() => {
@@ -42,7 +63,7 @@ export default function AffikeOfferPage() {
     return () => {
       cancelled = true;
     };
-  }, [params.offerId, showToast]);
+  }, [offerId, showToast]);
 
   const startOffer = async () => {
     if (!offer) return;
@@ -55,6 +76,13 @@ export default function AffikeOfferPage() {
     setStarting(true);
 
     try {
+        if (offer.provider === "offerwall-me" && offer.url) {
+          window.open(offer.url, "_blank", "noopener,noreferrer");
+          setTrackingStarted(true);
+          setRedirectNoticeOpen(true);
+          return;
+        }
+
       const response = await fetch("/api/offers/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

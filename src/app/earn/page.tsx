@@ -15,6 +15,7 @@ import { Clock, History } from "lucide-react";
 const CPX_RETURN_OFFER_KEY = "cpx-return-offer-id";
 const CPX_DISMISSED_OFFER_EVENT = "cpx-dismissed-offer-id";
 const CPX_STARTED_OFFERS_KEY = "cpx-started-offer-ids";
+const OFFER_DETAILS_CACHE_PREFIX = "offer-details-cache:";
 
 function shuffleOffers(offers: Offer[]) {
   const priorityOffers = offers.filter((offer) => offer.provider === "offerwall-me");
@@ -170,6 +171,7 @@ export default function EarnPage() {
     }
 
     if (offer.provider === "affike" || (offer.provider === "offerwall-me" && offer.type === "App Download")) {
+      window.sessionStorage.setItem(`${OFFER_DETAILS_CACHE_PREFIX}${offer.id}`, JSON.stringify(offer));
       const detailsPath = offer.provider === "offerwall-me" ? "/earn/offer" : "/earn/affike";
       router.push(`${detailsPath}/${encodeURIComponent(offer.id)}`);
       return;
