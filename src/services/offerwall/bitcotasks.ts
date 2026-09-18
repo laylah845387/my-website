@@ -97,6 +97,7 @@ export class BitcotasksProvider implements OfferwallProvider {
           const res = await fetch(buildUrl(path, this.apiKey, userId, userIp), {
             headers: { Authorization: `Bearer ${this.bearerToken}` },
             cache: "no-store",
+            signal: AbortSignal.timeout(8000),
           });
 
           if (!res.ok) return [];

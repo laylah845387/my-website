@@ -100,6 +100,7 @@ export class CpxResearchProvider implements OfferwallProvider {
     try {
       const res = await fetch(buildUrl(config.appId, config.secureHash, userId, userIp), {
         cache: "no-store",
+        signal: AbortSignal.timeout(8000),
       });
       if (!res.ok) return [];
 

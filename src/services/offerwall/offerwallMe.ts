@@ -182,6 +182,7 @@ export class OfferwallMeProvider implements OfferwallProvider {
       const response = await fetch(`https://offerwall.me/${endpoint}?${params}`, {
         headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0" },
         cache: "no-store",
+        signal: AbortSignal.timeout(8000),
       });
       if (!response.ok) return [];
       const payload = await response.json();

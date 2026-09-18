@@ -161,6 +161,7 @@ export class AffikeProvider implements OfferwallProvider {
         buildOffersUrl(apiKey),
         {
           cache: "no-store",
+          signal: AbortSignal.timeout(8000),
         }
       );
 
