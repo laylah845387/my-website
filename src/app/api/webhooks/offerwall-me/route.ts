@@ -30,16 +30,26 @@ function getOfferIds(params: URLSearchParams): string[] {
     params.get("taskId"),
   ].filter((value): value is string => Boolean(value?.trim()));
 
+  const endpoints = ["offerapi.php", "api.php", "slapi.php"];
   return [...new Set(rawIds.flatMap((rawId) => {
     if (rawId.startsWith("offerwall-me-")) return [rawId];
 
-    const normalizedRawId = rawId.includes(":") || !provider
+    const providerAndId = rawId.includes(":")
       ? rawId
-      : `${provider}:${rawId}`;
-    return [
-      `offerwall-me-offerapi.php-${normalizedRawId}`,
-      rawId.includes(":") ? `offerwall-me-offerapi.php-${rawId}` : "",
-    ].filter(Boolean);
+      : provider
+        ? `${provider}:${rawId}`
+        : rawId;
+    const idOnly = rawId.includes(":") ? rawId.slice(rawId.indexOf(":") + 1) : rawId;
+    const endpointHint = providerAndId.split(":")[0].toLowerCase();
+    const matchingEndpoints = endpoints.filter((endpoint) =>
+      endpointHint === endpoint || endpointHint === endpoint.replace(".php", "")
+    );
+    const endpointsToTry = matchingEndpoints.length > 0 ? matchingEndpoints : endpoints;
+
+    return endpointsToTry.flatMap((endpoint) => [
+      `offerwall-me-${endpoint}-${idOnly}`,
+      `offerwall-me-${endpoint}-${providerAndId}`,
+    ]);
   }))];
 }
 
@@ -157,7 +167,7 @@ export async function POST(request: NextRequest) {
         credited: true,
       });
       await Promise.all(offerIds.map((id) => recordOfferwallMeMilestone(userId, id, points, transactionId)));
-      if (offerName && offerIds.length === 0) {
+      if (offerName) {
         await recordOfferwallMeMilestoneByName(userId, offerName, points, transactionId);
       }
     } else if (status === "1" && previous.credited && offerIds.length > 0) {
@@ -180,7 +190,7 @@ export async function POST(request: NextRequest) {
       credited: true,
     });
     await Promise.all(offerIds.map((id) => recordOfferwallMeMilestone(userId, id, points, transactionId)));
-    if (offerName && offerIds.length === 0) {
+    if (offerName) {
       await recordOfferwallMeMilestoneByName(userId, offerName, points, transactionId);
     }
   }
