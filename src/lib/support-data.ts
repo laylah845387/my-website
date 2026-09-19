@@ -1,16 +1,8 @@
-import { getRedis } from "./redis";
 import { SupportTicket, SupportReply } from "@/types";
-
-function ticketsKey(discordId: string) {
-  return `user:${discordId}:tickets`;
-}
-// Global index of every ticket ever created, across all accounts — powers
-// the admin support inbox, mirroring the same pattern as orders.
-const GLOBAL_TICKETS_KEY = "tickets:all";
+import { getSupabase } from "./supabase";
 
 const MAX_OPEN_TICKETS_PER_USER = 3;
 
-// Plain 14-digit numeric ID — easy to read/type/reference, no prefix or letters.
 function generateTicketId(): string {
   return `${Date.now()}${Math.floor(Math.random() * 10)}`;
 }
@@ -24,10 +16,7 @@ export async function createTicket(
   username: string | undefined,
   message: string
 ): Promise<{ ticket: SupportTicket | null; error?: string }> {
-  const openCount = (await getTicketsForUser(discordId)).filter(
-    (t) => t.status === "OPEN"
-  ).length;
-
+  const openCount = (await getTicketsForUser(discordId)).filter((ticket) => ticket.status === "OPEN").length;
   if (openCount >= MAX_OPEN_TICKETS_PER_USER) {
     return {
       ticket: null,
@@ -35,9 +24,7 @@ export async function createTicket(
     };
   }
 
-  const redis = getRedis();
   const now = new Date().toISOString();
-
   const ticket: SupportTicket = {
     id: generateTicketId(),
     discordId,
@@ -49,49 +36,60 @@ export async function createTicket(
     createdAt: now,
     updatedAt: now,
   };
-
-  await redis.lpush(ticketsKey(discordId), ticket);
-  await redis.lpush(GLOBAL_TICKETS_KEY, ticket);
+  const { error } = await getSupabase().from("support_tickets").insert({
+    id: ticket.id,
+    discord_id: discordId,
+    ticket_data: ticket,
+    created_at: now,
+    updated_at: now,
+  });
+  if (error) throw error;
   return { ticket };
 }
 
 export async function getTicketsForUser(discordId: string): Promise<SupportTicket[]> {
-  const redis = getRedis();
-  const raw = await redis.lrange<SupportTicket>(ticketsKey(discordId), 0, 49);
-  return raw ?? [];
+  const { data, error } = await getSupabase()
+    .from("support_tickets")
+    .select("ticket_data")
+    .eq("discord_id", discordId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) throw error;
+  return (data ?? []).map((row) => row.ticket_data as SupportTicket);
 }
 
 export async function getAllTickets(limit = 200): Promise<SupportTicket[]> {
-  const redis = getRedis();
-  const raw = await redis.lrange<SupportTicket>(GLOBAL_TICKETS_KEY, 0, limit - 1);
-  return raw ?? [];
+  const { data, error } = await getSupabase()
+    .from("support_tickets")
+    .select("ticket_data")
+    .order("updated_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map((row) => row.ticket_data as SupportTicket);
 }
 
-/**
- * Redis lists don't support "update by field", so mutating a ticket means
- * finding its slot by id (in both the personal list and the global index)
- * and rewriting that slot with LSET.
- */
 async function mutateTicket(
   discordId: string,
   ticketId: string,
   mutate: (ticket: SupportTicket) => SupportTicket
 ): Promise<SupportTicket | null> {
-  const redis = getRedis();
+  const db = getSupabase();
+  const { data: row, error: readError } = await db
+    .from("support_tickets")
+    .select("ticket_data")
+    .eq("discord_id", discordId)
+    .eq("id", ticketId)
+    .maybeSingle();
+  if (readError) throw readError;
+  if (!row) return null;
 
-  const personalList = (await redis.lrange<SupportTicket>(ticketsKey(discordId), 0, -1)) ?? [];
-  const personalIndex = personalList.findIndex((t) => t.id === ticketId);
-  if (personalIndex === -1) return null;
-
-  const updated = mutate(personalList[personalIndex]);
-  await redis.lset(ticketsKey(discordId), personalIndex, updated);
-
-  const globalList = (await redis.lrange<SupportTicket>(GLOBAL_TICKETS_KEY, 0, -1)) ?? [];
-  const globalIndex = globalList.findIndex((t) => t.id === ticketId);
-  if (globalIndex !== -1) {
-    await redis.lset(GLOBAL_TICKETS_KEY, globalIndex, updated);
-  }
-
+  const updated = mutate(row.ticket_data as SupportTicket);
+  const { error } = await db
+    .from("support_tickets")
+    .update({ ticket_data: updated, updated_at: updated.updatedAt })
+    .eq("discord_id", discordId)
+    .eq("id", ticketId);
+  if (error) throw error;
   return updated;
 }
 
@@ -118,40 +116,30 @@ export async function addAdminReply(
   });
 }
 
-/**
- * Adds a reply from the ticket owner themself — only allowed while the
- * ticket is still OPEN, so people can't keep bumping a resolved ticket
- * forever (they'd open a new one instead).
- */
 export async function addUserReply(
   discordId: string,
   ticketId: string,
   message: string
 ): Promise<{ ticket: SupportTicket | null; error?: string }> {
-  const list = await getTicketsForUser(discordId);
-  const existing = list.find((t) => t.id === ticketId);
-
-  if (!existing) {
-    return { ticket: null, error: "Ticket not found." };
-  }
+  const existing = (await getTicketsForUser(discordId)).find((ticket) => ticket.id === ticketId);
+  if (!existing) return { ticket: null, error: "Ticket not found." };
   if (existing.status !== "OPEN") {
     return { ticket: null, error: "This request is already resolved." };
   }
 
-  const updated = await mutateTicket(discordId, ticketId, (ticket) => {
-    const reply: SupportReply = {
-      id: generateReplyId(),
-      from: "user",
-      message,
-      createdAt: new Date().toISOString(),
-    };
-    return {
-      ...ticket,
-      replies: [...ticket.replies, reply],
-      updatedAt: new Date().toISOString(),
-    };
-  });
-
+  const updated = await mutateTicket(discordId, ticketId, (ticket) => ({
+    ...ticket,
+    replies: [
+      ...ticket.replies,
+      {
+        id: generateReplyId(),
+        from: "user",
+        message,
+        createdAt: new Date().toISOString(),
+      },
+    ],
+    updatedAt: new Date().toISOString(),
+  }));
   return { ticket: updated };
 }
 

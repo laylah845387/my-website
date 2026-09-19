@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const snapshot = await getUserSnapshot(user.id);
     return NextResponse.json({ signedIn: true, ...snapshot });
   } catch (error) {
-    // Redis being unavailable must not make a valid Discord session look
+    // Account storage being unavailable must not make a valid Discord session look
     // logged out in the client. Keep the identity and let the UI retry data.
     console.error("[User] Could not load account data:", error);
     return NextResponse.json({

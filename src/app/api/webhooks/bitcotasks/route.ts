@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { getRedis } from "@/lib/redis";
+import { getSupabase } from "@/lib/supabase";
 import { markOfferComplete, adjustPoints } from "@/lib/user-data";
 
 /**
@@ -77,14 +77,20 @@ async function handlePostback(request: NextRequest): Promise<NextResponse> {
     return new NextResponse("ERROR: Signature doesn't match", { status: 200 });
   }
 
-  const redis = getRedis();
-
   // Duplicate protection: BitcoTasks may resend the same postback (e.g.
   // if our response was slow). Each transId should only ever be credited
   // once, no matter how many times it arrives.
-  const isNew = await redis.sadd("bitcotasks:processed-transactions", transId);
-  if (isNew === 0) {
+  const { data: inserted, error: insertError } = await getSupabase()
+    .from("bitcotasks_processed_transactions")
+    .insert({ transaction_id: transId })
+    .select("transaction_id")
+    .maybeSingle();
+  if (insertError?.code === "23505") {
     return new NextResponse("ok", { status: 200 });
+  }
+  if (insertError || !inserted) {
+    console.error("[BitcoTasks] Could not record transaction:", insertError);
+    return new NextResponse("ERROR: Database unavailable", { status: 200 });
   }
 
   const rewardAmount = Math.round(parseFloat(reward)) || 0;

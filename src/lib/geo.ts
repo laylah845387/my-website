@@ -1,10 +1,6 @@
-import { getRedis } from "./redis";
+import { getSupabase } from "./supabase";
 
 const GEO_TTL_SECONDS = 60 * 60 * 24; // 24h — a given IP's country rarely changes
-
-function geoKey(ip: string) {
-  return `geo:ip:${ip}`;
-}
 
 // Primary: ipwho.is — free, no signup/key, generous rate limits, HTTPS.
 async function lookupViaIpwhoIs(ip: string): Promise<string | null> {
@@ -39,7 +35,7 @@ async function lookupViaIpApiCom(ip: string): Promise<string | null> {
 }
 
 /**
- * Best-effort IP -> 2-letter country code lookup, cached in Redis so we
+ * Best-effort IP -> 2-letter country code lookup, cached in Supabase so we
  * don't hammer either provider or add latency for the same recurring
  * visitor. Tries ipwho.is first, then ip-api.com if that fails, so one
  * provider having an outage or rate-limiting us doesn't take out the
@@ -53,13 +49,17 @@ export async function getCountryForIp(ip: string | undefined | null): Promise<st
     return null;
   }
 
-  const redis = getRedis();
-
   try {
-    const cached = await redis.get<string>(geoKey(ip));
-    if (cached) return cached;
+    const { data: cached, error } = await getSupabase()
+      .from("geo_cache")
+      .select("country, expires_at")
+      .eq("ip", ip)
+      .maybeSingle();
+    if (!error && cached && new Date(cached.expires_at).getTime() > Date.now()) {
+      return cached.country;
+    }
   } catch (err) {
-    console.warn(`[Geo] Redis cache read failed for ${ip}:`, err);
+    console.warn(`[Geo] Supabase cache read failed for ${ip}:`, err);
   }
 
   let country: string | null = null;
@@ -85,6 +85,13 @@ export async function getCountryForIp(ip: string | undefined | null): Promise<st
     return null;
   }
 
-  await redis.set(geoKey(ip), country, { ex: GEO_TTL_SECONDS }).catch(() => {});
+  await getSupabase()
+    .from("geo_cache")
+    .upsert({
+      ip,
+      country,
+      expires_at: new Date(Date.now() + GEO_TTL_SECONDS * 1000).toISOString(),
+    })
+    .then(() => {});
   return country;
 }

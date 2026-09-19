@@ -1,61 +1,60 @@
-import { getRedis } from "./redis";
 import { Order } from "@/types";
-
-/**
- * Per-account persistent data (points, completed offers, order history),
- * stored in Redis and keyed by the visitor's Discord ID. This replaces
- * the old localStorage-based storage, so progress now actually belongs
- * to the signed-in Discord account rather than to a single browser.
- */
-
-function pointsKey(discordId: string) {
-  return `user:${discordId}:points`;
-}
-function completedKey(discordId: string) {
-  return `user:${discordId}:completed`;
-}
-function dismissedKey(discordId: string) {
-  return `user:${discordId}:dismissed`;
-}
-function ordersKey(discordId: string) {
-  return `user:${discordId}:orders`;
-}
-// A single global list of every order ever placed, across all accounts —
-// this is what powers the admin "manage deliveries" view, since orders
-// otherwise only live inside each individual user's own list.
-const GLOBAL_ORDERS_KEY = "orders:all";
+import { getSupabase } from "./supabase";
 
 export async function getPoints(discordId: string): Promise<number> {
-  const redis = getRedis();
-  const value = await redis.get<number>(pointsKey(discordId));
-  return value ?? 0;
+  const { data, error } = await getSupabase()
+    .from("user_accounts")
+    .select("points")
+    .eq("discord_id", discordId)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.points ?? 0;
 }
 
 export async function getCompletedOffers(discordId: string): Promise<string[]> {
-  const redis = getRedis();
-  const members = await redis.smembers(completedKey(discordId));
-  return members ?? [];
+  const { data, error } = await getSupabase()
+    .from("completed_offers")
+    .select("offer_id")
+    .eq("discord_id", discordId);
+  if (error) throw error;
+  return (data ?? []).map((row) => row.offer_id);
 }
 
 export async function getDismissedOffers(discordId: string): Promise<string[]> {
-  const redis = getRedis();
-  const members = await redis.smembers(dismissedKey(discordId));
-  return members ?? [];
+  const { data, error } = await getSupabase()
+    .from("dismissed_offers")
+    .select("offer_id")
+    .eq("discord_id", discordId);
+  if (error) throw error;
+  return (data ?? []).map((row) => row.offer_id);
 }
 
 export async function dismissOffer(discordId: string, offerId: string): Promise<boolean> {
-  const redis = getRedis();
-  const completed = await redis.sismember(completedKey(discordId), offerId);
-  if (completed) return false;
+  const completed = await getSupabase()
+    .from("completed_offers")
+    .select("offer_id")
+    .eq("discord_id", discordId)
+    .eq("offer_id", offerId)
+    .maybeSingle();
+  if (completed.error) throw completed.error;
+  if (completed.data) return false;
 
-  await redis.sadd(dismissedKey(discordId), offerId);
+  const { error } = await getSupabase()
+    .from("dismissed_offers")
+    .upsert({ discord_id: discordId, offer_id: offerId }, { onConflict: "discord_id,offer_id" });
+  if (error) throw error;
   return true;
 }
 
 export async function getOrders(discordId: string): Promise<Order[]> {
-  const redis = getRedis();
-  const raw = await redis.lrange<Order>(ordersKey(discordId), 0, 49);
-  return raw ?? [];
+  const { data, error } = await getSupabase()
+    .from("orders")
+    .select("order_data")
+    .eq("discord_id", discordId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) throw error;
+  return (data ?? []).map((row) => row.order_data as Order);
 }
 
 export async function getUserSnapshot(discordId: string) {
@@ -68,28 +67,33 @@ export async function getUserSnapshot(discordId: string) {
 }
 
 export async function adjustPoints(discordId: string, delta: number): Promise<number> {
-  const redis = getRedis();
-  return redis.incrby(pointsKey(discordId), delta);
+  const { data, error } = await getSupabase().rpc("adjust_user_points", {
+    p_discord_id: discordId,
+    p_delta: delta,
+  });
+  if (error) throw error;
+  return Number(data ?? 0);
 }
 
-/**
- * CPX Research reuses the same trans_id for a transaction's entire
- * lifecycle — first calling with status "1" (completed), and possibly
- * calling again later with status "2" (canceled/fraud) for the SAME
- * trans_id if it's later reversed. Records the last known status for a
- * transaction and returns whatever the previous status was (or null if
- * this is the first time we've seen it), so the caller can tell a
- * genuine state change from a duplicate resend.
- */
 export async function markCpxTransactionStatus(
   transId: string,
   newStatus: string
 ): Promise<string | null> {
-  const redis = getRedis();
-  const key = "cpx:transaction-status";
-  const previous = await redis.hget<string>(key, transId);
-  await redis.hset(key, { [transId]: newStatus });
-  return previous ?? null;
+  const db = getSupabase();
+  const { data: previous, error: readError } = await db
+    .from("cpx_transaction_status")
+    .select("status")
+    .eq("transaction_id", transId)
+    .maybeSingle();
+  if (readError) throw readError;
+
+  const { error } = await db.from("cpx_transaction_status").upsert({
+    transaction_id: transId,
+    status: newStatus,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw error;
+  return previous?.status ?? null;
 }
 
 export interface AffikeTransactionRecord {
@@ -100,50 +104,58 @@ export interface AffikeTransactionRecord {
   credited?: boolean;
 }
 
-/**
- * Affike's postback can, in principle, resend the same txn_id with a
- * different status later (e.g. an approved conversion reversed as a
- * chargeback) — the same lifecycle CPX Research has. Unlike CPX, Affike
- * doesn't echo back how many points it thinks we credited, so we record
- * that ourselves here ({userId, points, status}) the first time we see a
- * txn_id, so a later status change can be reversed by exactly the amount
- * originally credited instead of guessing. Returns the previous record
- * (or null if this is the first time we've seen this txn_id).
- */
 export async function markAffikeTransaction(
   txnId: string,
   record: AffikeTransactionRecord
 ): Promise<AffikeTransactionRecord | null> {
-  const redis = getRedis();
-  const key = "affike:transactions";
-  const previous = await redis.hget<AffikeTransactionRecord>(key, txnId);
-  const nextRecord = {
-    ...record,
-    offerId: record.offerId ?? previous?.offerId ?? null,
+  const db = getSupabase();
+  const { data: previous, error: readError } = await db
+    .from("affike_transactions")
+    .select("user_id, points, status, offer_id, credited")
+    .eq("transaction_id", txnId)
+    .maybeSingle();
+  if (readError) throw readError;
+
+  const next = {
+    user_id: record.userId,
+    points: record.points,
+    status: record.status,
+    offer_id: record.offerId ?? previous?.offer_id ?? null,
     credited: record.credited ?? previous?.credited ?? false,
+    updated_at: new Date().toISOString(),
   };
-  await redis.hset(key, { [txnId]: nextRecord });
-  await redis.sadd(`affike:user-transactions:${record.userId}`, txnId);
-  return previous ?? null;
+  const { error } = await db.from("affike_transactions").upsert({ transaction_id: txnId, ...next });
+  if (error) throw error;
+  return previous
+    ? {
+        userId: previous.user_id,
+        points: previous.points,
+        status: previous.status,
+        offerId: previous.offer_id,
+        credited: previous.credited,
+      }
+    : null;
 }
 
 export async function getAffikeTransactions(
   discordId: string,
   offerId?: string
 ): Promise<AffikeTransactionRecord[]> {
-  const redis = getRedis();
-  const transactionIds = await redis.smembers(`affike:user-transactions:${discordId}`);
-  if (!transactionIds?.length) return [];
-
-  const records = await Promise.all(
-    transactionIds.map((txnId) => redis.hget<AffikeTransactionRecord>("affike:transactions", txnId))
-  );
-
-  return records
-    .filter((record): record is AffikeTransactionRecord =>
-      !!record && (!offerId || record.offerId === offerId)
-    )
-    .reverse();
+  let query = getSupabase()
+    .from("affike_transactions")
+    .select("user_id, points, status, offer_id, credited, updated_at")
+    .eq("user_id", discordId)
+    .order("updated_at", { ascending: false });
+  if (offerId) query = query.eq("offer_id", offerId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    userId: row.user_id,
+    points: row.points,
+    status: row.status,
+    offerId: row.offer_id,
+    credited: row.credited,
+  }));
 }
 
 export interface OfferwallMeTransactionRecord {
@@ -159,43 +171,48 @@ export async function markOfferwallMeTransaction(
   transactionId: string,
   record: OfferwallMeTransactionRecord
 ): Promise<OfferwallMeTransactionRecord | null> {
-  const redis = getRedis();
-  const key = "offerwall-me:transactions";
-  const previous = await redis.hget<OfferwallMeTransactionRecord>(key, transactionId);
-  const nextRecord = {
-    ...record,
-    offerId: record.offerId ?? previous?.offerId ?? null,
-    offerName: record.offerName ?? previous?.offerName ?? null,
+  const db = getSupabase();
+  const { data: previous, error: readError } = await db
+    .from("offerwall_me_transactions")
+    .select("user_id, points, status, offer_id, offer_name, credited")
+    .eq("transaction_id", transactionId)
+    .maybeSingle();
+  if (readError) throw readError;
+
+  const { error } = await db.from("offerwall_me_transactions").upsert({
+    transaction_id: transactionId,
+    user_id: record.userId,
+    points: record.points,
+    status: record.status,
+    offer_id: record.offerId ?? previous?.offer_id ?? null,
+    offer_name: record.offerName ?? previous?.offer_name ?? null,
     credited: record.credited ?? previous?.credited ?? false,
-  };
-  await redis.hset(key, { [transactionId]: nextRecord });
-  return previous ?? null;
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw error;
+  return previous
+    ? {
+        userId: previous.user_id,
+        points: previous.points,
+        status: previous.status,
+        offerId: previous.offer_id,
+        offerName: previous.offer_name,
+        credited: previous.credited,
+      }
+    : null;
 }
 
-/**
- * offerwall.me's postback tells us which offer and how many points a
- * completed step was worth, but never which named step — so we record
- * the raw {reward, transactionId} here, keyed by offer, and match it
- * against that offer's live steps by reward amount when displaying it
- * (each step's payout is unique within an offer in practice, so this is
- * a reliable match without offerwall.me giving us an explicit step id).
- *
- * Known limitation: if a postback for this same reward+offer is later
- * reversed (a chargeback), the matching milestone stays marked complete
- * in the UI — we don't currently un-cross a checkpoint on reversal. Rare
- * in practice and not worth the added complexity right now.
- */
 export async function recordOfferwallMeMilestone(
   discordId: string,
   offerId: string,
   reward: number,
   transactionId: string
 ): Promise<void> {
-  const redis = getRedis();
-  await redis.sadd(
-    `user:${discordId}:offerwall-me-milestones:${offerId}`,
-    JSON.stringify({ reward, transactionId })
+  const { error } = await getSupabase().from("offerwall_me_milestones").upsert(
+    { discord_id: discordId, offer_id: offerId, reward, transaction_id: transactionId },
+    { onConflict: "discord_id,offer_id,reward,transaction_id" }
   );
+  if (error) throw error;
 }
 
 export async function removeOfferwallMeMilestone(
@@ -204,11 +221,11 @@ export async function removeOfferwallMeMilestone(
   reward: number,
   transactionId: string
 ): Promise<void> {
-  const redis = getRedis();
-  await redis.srem(
-    `user:${discordId}:offerwall-me-milestones:${offerId}`,
-    JSON.stringify({ reward, transactionId })
-  );
+  const { error } = await getSupabase()
+    .from("offerwall_me_milestones")
+    .delete()
+    .match({ discord_id: discordId, offer_id: offerId, reward, transaction_id: transactionId });
+  if (error) throw error;
 }
 
 export async function recordOfferwallMeMilestoneByName(
@@ -217,11 +234,11 @@ export async function recordOfferwallMeMilestoneByName(
   reward: number,
   transactionId: string
 ): Promise<void> {
-  const redis = getRedis();
-  await redis.sadd(
-    `user:${discordId}:offerwall-me-milestone-names`,
-    JSON.stringify({ offerName, reward, transactionId })
+  const { error } = await getSupabase().from("offerwall_me_milestone_names").upsert(
+    { discord_id: discordId, offer_name: offerName, reward, transaction_id: transactionId },
+    { onConflict: "discord_id,offer_name,reward,transaction_id" }
   );
+  if (error) throw error;
 }
 
 export async function removeOfferwallMeMilestoneByName(
@@ -230,55 +247,42 @@ export async function removeOfferwallMeMilestoneByName(
   reward: number,
   transactionId: string
 ): Promise<void> {
-  const redis = getRedis();
-  await redis.srem(
-    `user:${discordId}:offerwall-me-milestone-names`,
-    JSON.stringify({ offerName, reward, transactionId })
-  );
+  const { error } = await getSupabase()
+    .from("offerwall_me_milestone_names")
+    .delete()
+    .match({ discord_id: discordId, offer_name: offerName, reward, transaction_id: transactionId });
+  if (error) throw error;
 }
 
 export async function getOfferwallMeMilestoneRewards(
   discordId: string,
   offerId: string
 ): Promise<number[]> {
-  const redis = getRedis();
-  const raw = await redis.smembers(`user:${discordId}:offerwall-me-milestones:${offerId}`);
-  return (raw ?? [])
-    .map((entry) => {
-      try {
-        return Number(JSON.parse(entry).reward);
-      } catch {
-        return NaN;
-      }
-    })
-    .filter((n) => Number.isFinite(n));
+  const { data, error } = await getSupabase()
+    .from("offerwall_me_milestones")
+    .select("reward")
+    .eq("discord_id", discordId)
+    .eq("offer_id", offerId);
+  if (error) throw error;
+  return (data ?? []).map((row) => row.reward);
 }
 
 export async function getOfferwallMeMilestoneRewardsForOffers(
   discordId: string,
   offerIds: string[]
 ): Promise<Map<string, number[]>> {
-  const uniqueIds = [...new Set(offerIds)];
-  if (uniqueIds.length === 0) return new Map();
-
-  const redis = getRedis();
-  const pipeline = redis.pipeline();
-  uniqueIds.forEach((offerId) => {
-    pipeline.smembers(`user:${discordId}:offerwall-me-milestones:${offerId}`);
-  });
-  const results = await pipeline.exec<unknown[][]>();
-  return new Map(uniqueIds.map((offerId, index) => [
-    offerId,
-    (Array.isArray(results[index]) ? results[index] : [])
-      .map((entry) => {
-        try {
-          return Number(JSON.parse(String(entry)).reward);
-        } catch {
-          return NaN;
-        }
-      })
-      .filter((value) => Number.isFinite(value)),
-  ]));
+  if (offerIds.length === 0) return new Map();
+  const { data, error } = await getSupabase()
+    .from("offerwall_me_milestones")
+    .select("offer_id, reward")
+    .eq("discord_id", discordId)
+    .in("offer_id", [...new Set(offerIds)]);
+  if (error) throw error;
+  const result = new Map<string, number[]>();
+  for (const row of data ?? []) {
+    result.set(row.offer_id, [...(result.get(row.offer_id) ?? []), row.reward]);
+  }
+  return result;
 }
 
 export async function getOfferwallMeMilestoneRewardsByName(
@@ -296,100 +300,75 @@ export async function getOfferwallMeMilestoneRewardsByName(
 export async function getOfferwallMeMilestoneNameRecords(
   discordId: string
 ): Promise<Array<{ offerName: string; reward: number }>> {
-  const redis = getRedis();
-  const raw = await redis.smembers(`user:${discordId}:offerwall-me-milestone-names`);
-  return (raw ?? [])
-    .map((entry) => {
-      try {
-        const parsed = JSON.parse(entry) as { offerName?: string; reward?: number };
-        return parsed.offerName && Number.isFinite(Number(parsed.reward))
-          ? { offerName: parsed.offerName, reward: Number(parsed.reward) }
-          : null;
-      } catch {
-        return null;
-      }
-    })
-    .filter((record): record is { offerName: string; reward: number } => record !== null);
+  const { data, error } = await getSupabase()
+    .from("offerwall_me_milestone_names")
+    .select("offer_name, reward")
+    .eq("discord_id", discordId);
+  if (error) throw error;
+  return (data ?? []).map((row) => ({ offerName: row.offer_name, reward: row.reward }));
 }
 
-/**
- * Marks an offer complete and credits points, unless it was already
- * completed by this account (SADD returns 0 if the member already
- * existed in the set, which we use to detect that atomically).
- */
 export async function markOfferComplete(
   discordId: string,
   offerId: string,
   points: number
 ): Promise<{ alreadyCompleted: boolean; points: number }> {
-  const redis = getRedis();
-  const added = await redis.sadd(completedKey(discordId), offerId);
-
-  if (added === 0) {
-    const current = await getPoints(discordId);
-    return { alreadyCompleted: true, points: current };
-  }
-
-  const newPoints = await redis.incrby(pointsKey(discordId), points);
-  return { alreadyCompleted: false, points: newPoints };
+  const { data, error } = await getSupabase().rpc("mark_offer_complete_and_credit", {
+    p_discord_id: discordId,
+    p_offer_id: offerId,
+    p_points: points,
+  });
+  if (error) throw error;
+  return {
+    alreadyCompleted: Boolean(data?.alreadyCompleted),
+    points: Number(data?.points ?? 0),
+  };
 }
 
-/**
- * Attempts to redeem a reward. Returns success: false without changing
- * anything if the account doesn't have enough points.
- */
 export async function redeemRewardForUser(
   discordId: string,
   order: Order
 ): Promise<{ success: boolean; points: number }> {
-  const redis = getRedis();
-  const current = await getPoints(discordId);
-
-  if (current < order.points) {
-    return { success: false, points: current };
-  }
-
-  const newPoints = await redis.decrby(pointsKey(discordId), order.points);
-  await redis.lpush(ordersKey(discordId), order);
-  await redis.lpush(GLOBAL_ORDERS_KEY, order);
-  return { success: true, points: newPoints };
+  const { data, error } = await getSupabase().rpc("redeem_user_reward", {
+    p_discord_id: discordId,
+    p_order: order,
+    p_points: order.points,
+  });
+  if (error) throw error;
+  return { success: Boolean(data?.success), points: Number(data?.points ?? 0) };
 }
 
-/**
- * All orders ever placed, across every account — for the admin
- * delivery-management view. Most recent first.
- */
 export async function getAllOrders(limit = 200): Promise<Order[]> {
-  const redis = getRedis();
-  const raw = await redis.lrange<Order>(GLOBAL_ORDERS_KEY, 0, limit - 1);
-  return raw ?? [];
+  const { data, error } = await getSupabase()
+    .from("orders")
+    .select("order_data")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map((row) => row.order_data as Order);
 }
 
-/**
- * Flips an order's delivered flag, updating both the owning account's
- * personal order list and the global admin index so they stay in sync.
- * Redis lists don't support "update by field", so we find the matching
- * entry by id and rewrite that one slot with LSET.
- */
 export async function setOrderDelivered(
   discordId: string,
   orderId: string,
   delivered: boolean
 ): Promise<Order | null> {
-  const redis = getRedis();
+  const db = getSupabase();
+  const { data: row, error: readError } = await db
+    .from("orders")
+    .select("order_data")
+    .eq("discord_id", discordId)
+    .eq("id", orderId)
+    .maybeSingle();
+  if (readError) throw readError;
+  if (!row) return null;
 
-  const personalList = (await redis.lrange<Order>(ordersKey(discordId), 0, -1)) ?? [];
-  const personalIndex = personalList.findIndex((o) => o.id === orderId);
-  if (personalIndex === -1) return null;
-
-  const updated: Order = { ...personalList[personalIndex], delivered };
-  await redis.lset(ordersKey(discordId), personalIndex, updated);
-
-  const globalList = (await redis.lrange<Order>(GLOBAL_ORDERS_KEY, 0, -1)) ?? [];
-  const globalIndex = globalList.findIndex((o) => o.id === orderId);
-  if (globalIndex !== -1) {
-    await redis.lset(GLOBAL_ORDERS_KEY, globalIndex, updated);
-  }
-
+  const updated = { ...(row.order_data as Order), delivered };
+  const { error } = await db
+    .from("orders")
+    .update({ order_data: updated })
+    .eq("discord_id", discordId)
+    .eq("id", orderId);
+  if (error) throw error;
   return updated;
 }
