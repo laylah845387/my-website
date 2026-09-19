@@ -130,12 +130,6 @@ export default function AffikeOfferPage() {
           const refreshedOffer = (offersData.offers ?? []).find((item: Offer) => item.id === offer.id);
           if (refreshedOffer) {
             setOffer(refreshedOffer);
-          } else if (offer.provider === "offerwall-me") {
-            setOffer({
-              ...offer,
-              milestones: offer.milestones?.map((milestone) => ({ ...milestone, completed: true })),
-            });
-            setCompleted(true);
           }
         }
 
