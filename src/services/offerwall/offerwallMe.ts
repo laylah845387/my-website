@@ -3,7 +3,7 @@ import { Offer, OfferMilestone } from "@/types";
 import { getCountryForIp } from "@/lib/geo";
 import {
   getOfferwallMeMilestoneRewards,
-  getOfferwallMeMilestoneRewardsByName,
+  getOfferwallMeMilestoneNameRecords,
 } from "@/lib/user-data";
 import { OfferwallProvider } from "./types";
 
@@ -138,18 +138,20 @@ function normalize(raw: RawOffer, endpoint: Endpoint): Offer | null {
  * marked done from a single real completion.
  */
 async function applyMilestoneProgress(userId: string, offers: Offer[]): Promise<Offer[]> {
-  const enriched: Offer[] = [];
-
-  for (const offer of offers) {
+  const nameRecords = await getOfferwallMeMilestoneNameRecords(userId);
+  return Promise.all(offers.map(async (offer) => {
     if (!offer.milestones || offer.milestones.length === 0) {
-      enriched.push(offer);
-      continue;
+      return offer;
     }
 
-    const remainingPool = [
-      ...(await getOfferwallMeMilestoneRewards(userId, offer.id)),
-      ...(await getOfferwallMeMilestoneRewardsByName(userId, offer.title || "")),
-    ];
+    const [idRewards] = await Promise.all([
+      getOfferwallMeMilestoneRewards(userId, offer.id),
+    ]);
+    const normalizedTitle = (offer.title || "").trim().toLowerCase();
+    const nameRewards = nameRecords
+      .filter((record) => record.offerName.trim().toLowerCase() === normalizedTitle)
+      .map((record) => record.reward);
+    const remainingPool = [...idRewards, ...nameRewards];
 
     const milestonesWithProgress = offer.milestones.map((milestone) => {
       const poolIndex = remainingPool.indexOf(milestone.points);
@@ -159,20 +161,17 @@ async function applyMilestoneProgress(userId: string, offers: Offer[]): Promise<
     });
 
     if (milestonesWithProgress.every((m) => m.completed)) {
-      continue;
+      return null;
     }
 
-    enriched.push({ ...offer, milestones: milestonesWithProgress });
-  }
-
-  return enriched;
+    return { ...offer, milestones: milestonesWithProgress };
+  })).then((enriched) => enriched.filter((offer): offer is Offer => offer !== null));
 }
 
 export class OfferwallMeProvider implements OfferwallProvider {
-  private async fetchEndpoint(endpoint: Endpoint, userId: string, userIp: string): Promise<Offer[]> {
+  private async fetchEndpoint(endpoint: Endpoint, userId: string, userIp: string, country: string): Promise<Offer[]> {
     const settings = config();
     if (!settings) return [];
-    const country = (await getCountryForIp(userIp)) || "US";
     const identity = signedIdentity(settings.publicKey, userId, settings.privateSecret);
     const params = new URLSearchParams({
       api: settings.publicKey,
@@ -224,10 +223,11 @@ export class OfferwallMeProvider implements OfferwallProvider {
   }
 
   async getOffers(userId: string, userIp = "0.0.0.0"): Promise<Offer[]> {
+    const country = (await getCountryForIp(userIp)) || "US";
     const results = await Promise.all([
-      this.fetchEndpoint("offerapi.php", userId, userIp),
-      this.fetchEndpoint("api.php", userId, userIp),
-      this.fetchEndpoint("slapi.php", userId, userIp),
+      this.fetchEndpoint("offerapi.php", userId, userIp, country),
+      this.fetchEndpoint("api.php", userId, userIp, country),
+      this.fetchEndpoint("slapi.php", userId, userIp, country),
     ]);
     return applyMilestoneProgress(userId, results.flat());
   }

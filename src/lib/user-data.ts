@@ -258,21 +258,31 @@ export async function getOfferwallMeMilestoneRewardsByName(
   discordId: string,
   offerName: string
 ): Promise<number[]> {
+  const records = await getOfferwallMeMilestoneNameRecords(discordId);
+  const normalizedName = offerName.trim().toLowerCase();
+  return records
+    .filter((record) => record.offerName.trim().toLowerCase() === normalizedName)
+    .map((record) => record.reward)
+    .filter((value) => Number.isFinite(value));
+}
+
+export async function getOfferwallMeMilestoneNameRecords(
+  discordId: string
+): Promise<Array<{ offerName: string; reward: number }>> {
   const redis = getRedis();
   const raw = await redis.smembers(`user:${discordId}:offerwall-me-milestone-names`);
-  const normalizedName = offerName.trim().toLowerCase();
   return (raw ?? [])
     .map((entry) => {
       try {
         const parsed = JSON.parse(entry) as { offerName?: string; reward?: number };
-        return parsed.offerName?.trim().toLowerCase() === normalizedName
-          ? Number(parsed.reward)
-          : NaN;
+        return parsed.offerName && Number.isFinite(Number(parsed.reward))
+          ? { offerName: parsed.offerName, reward: Number(parsed.reward) }
+          : null;
       } catch {
-        return NaN;
+        return null;
       }
     })
-    .filter((value) => Number.isFinite(value));
+    .filter((record): record is { offerName: string; reward: number } => record !== null);
 }
 
 /**
