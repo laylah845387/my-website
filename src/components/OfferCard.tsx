@@ -1,7 +1,7 @@
 "use client";
 
 import { Offer } from "@/types";
-import { Clock } from "lucide-react";
+import { Apple, Clock, Globe, Smartphone } from "lucide-react";
 
 interface OfferCardProps {
   offer: Offer;
@@ -28,6 +28,13 @@ export default function OfferCard({ offer, onSelect, completed, active }: OfferC
         <span className="text-[11px] font-bold tracking-[0.12em] text-text-secondary group-hover:text-text-primary uppercase px-2.5 py-0.5 rounded-full bg-bg-elevated border border-border transition-colors">
           {offer.type || "TASK"}
         </span>
+      </div>
+
+      <div className="flex items-center gap-1.5 text-text-muted" aria-label="Available platforms">
+        {(offer.platforms?.length ? offer.platforms : ["web"]).map((platform) => {
+          const Icon = platform === "android" ? Smartphone : platform === "apple" ? Apple : Globe;
+          return <Icon key={platform} size={15} aria-label={platform} />;
+        })}
       </div>
 
       {/* 2. Points */}

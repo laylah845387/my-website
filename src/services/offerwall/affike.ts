@@ -130,6 +130,13 @@ function toOffer(raw: AffikeRawOffer): Offer {
     title: raw.name,
     description: raw.description || "",
     provider: "affike",
+    platforms: (raw.devices || []).flatMap((device) => {
+      const value = device.toLowerCase();
+      if (/android/.test(value)) return ["android" as const];
+      if (/ios|iphone|ipad|apple/.test(value)) return ["apple" as const];
+      if (/web|desktop|windows|mac/.test(value)) return ["web" as const];
+      return [];
+    }).filter((platform, index, all) => all.indexOf(platform) === index),
     milestones,
   };
 }

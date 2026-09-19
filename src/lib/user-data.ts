@@ -254,6 +254,33 @@ export async function getOfferwallMeMilestoneRewards(
     .filter((n) => Number.isFinite(n));
 }
 
+export async function getOfferwallMeMilestoneRewardsForOffers(
+  discordId: string,
+  offerIds: string[]
+): Promise<Map<string, number[]>> {
+  const uniqueIds = [...new Set(offerIds)];
+  if (uniqueIds.length === 0) return new Map();
+
+  const redis = getRedis();
+  const pipeline = redis.pipeline();
+  uniqueIds.forEach((offerId) => {
+    pipeline.smembers(`user:${discordId}:offerwall-me-milestones:${offerId}`);
+  });
+  const results = await pipeline.exec<unknown[][]>();
+  return new Map(uniqueIds.map((offerId, index) => [
+    offerId,
+    (Array.isArray(results[index]) ? results[index] : [])
+      .map((entry) => {
+        try {
+          return Number(JSON.parse(String(entry)).reward);
+        } catch {
+          return NaN;
+        }
+      })
+      .filter((value) => Number.isFinite(value)),
+  ]));
+}
+
 export async function getOfferwallMeMilestoneRewardsByName(
   discordId: string,
   offerName: string

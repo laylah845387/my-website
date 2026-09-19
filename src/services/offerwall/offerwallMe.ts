@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { Offer, OfferMilestone } from "@/types";
 import { getCountryForIp } from "@/lib/geo";
 import {
-  getOfferwallMeMilestoneRewards,
+  getOfferwallMeMilestoneRewardsForOffers,
   getOfferwallMeMilestoneNameRecords,
 } from "@/lib/user-data";
 import { OfferwallProvider } from "./types";
@@ -119,6 +119,14 @@ function normalize(raw: RawOffer, endpoint: Endpoint): Offer | null {
     description: get(raw, "description", "requirements"),
     provider: "offerwall-me",
     url,
+    platforms: (() => {
+      const rawDevices = Array.isArray(raw.devices) ? raw.devices.join(" ") : get(raw, "devices");
+      const devices = rawDevices.toLowerCase();
+      if (/android/.test(devices) && /ios|iphone|ipad|apple/.test(devices)) return ["android", "apple"];
+      if (/android/.test(devices)) return ["android"];
+      if (/ios|iphone|ipad|apple/.test(devices)) return ["apple"];
+      return endpoint === "offerapi.php" ? ["web"] : ["web"];
+    })(),
     milestones,
     qrCodeUrl: get(raw, "qr_code", "qrCode", "qr_url", "qrUrl") || undefined,
   };
@@ -139,14 +147,16 @@ function normalize(raw: RawOffer, endpoint: Endpoint): Offer | null {
  */
 async function applyMilestoneProgress(userId: string, offers: Offer[]): Promise<Offer[]> {
   const nameRecords = await getOfferwallMeMilestoneNameRecords(userId);
+  const rewardsByOfferId = await getOfferwallMeMilestoneRewardsForOffers(
+    userId,
+    offers.filter((offer) => offer.milestones?.length).map((offer) => offer.id)
+  );
   return Promise.all(offers.map(async (offer) => {
     if (!offer.milestones || offer.milestones.length === 0) {
       return offer;
     }
 
-    const [idRewards] = await Promise.all([
-      getOfferwallMeMilestoneRewards(userId, offer.id),
-    ]);
+    const idRewards = rewardsByOfferId.get(offer.id) ?? [];
     const normalizedTitle = (offer.title || "").trim().toLowerCase();
     const nameRewards = nameRecords
       .filter((record) => record.offerName.trim().toLowerCase() === normalizedTitle)

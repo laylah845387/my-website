@@ -26,6 +26,7 @@ export type Offer = {
   description?: string;
   provider?: string;
   url?: string;
+  platforms?: ("android" | "apple" | "web")[];
   milestones?: OfferMilestone[];
   qrCodeUrl?: string;
 };
