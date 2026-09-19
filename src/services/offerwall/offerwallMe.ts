@@ -163,6 +163,20 @@ async function applyMilestoneProgress(userId: string, offers: Offer[]): Promise<
       .map((record) => record.reward);
     const remainingPool = [...idRewards, ...nameRewards];
 
+    // Temporary diagnostic: only logs for offers where we actually have
+    // SOME recorded milestone data (by id or by name) for this user, so
+    // this doesn't flood the logs on every page load for every offer —
+    // just the ones relevant to debugging a real completion.
+    if (remainingPool.length > 0) {
+      console.log("[Offerwall.me] Milestone matching for offer:", {
+        offerId: offer.id,
+        offerTitle: offer.title,
+        idRewards,
+        nameRewards,
+        milestonePoints: offer.milestones.map((m) => m.points),
+      });
+    }
+
     const milestonesWithProgress = offer.milestones.map((milestone) => {
       const poolIndex = remainingPool.indexOf(milestone.points);
       if (poolIndex === -1) return milestone;
