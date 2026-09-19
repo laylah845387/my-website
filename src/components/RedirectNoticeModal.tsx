@@ -5,9 +5,14 @@ import { Gift } from "lucide-react";
 interface RedirectNoticeModalProps {
   isOpen: boolean;
   onClose: () => void;
+  showFullyCompletedNotice?: boolean;
 }
 
-export default function RedirectNoticeModal({ isOpen, onClose }: RedirectNoticeModalProps) {
+export default function RedirectNoticeModal({
+  isOpen,
+  onClose,
+  showFullyCompletedNotice = true,
+}: RedirectNoticeModalProps) {
   if (!isOpen) return null;
 
   return (
@@ -28,7 +33,7 @@ export default function RedirectNoticeModal({ isOpen, onClose }: RedirectNoticeM
         </p>
         <p className="text-[12px] text-text-secondary mt-3">
           When you have finished the offer, return back here to receive your
-          points. Points are only rewarded for fully completed offers.
+          points.{showFullyCompletedNotice ? " Points are only rewarded for fully completed offers." : ""}
         </p>
 
         <button

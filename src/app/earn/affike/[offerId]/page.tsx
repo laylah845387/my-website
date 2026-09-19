@@ -313,6 +313,7 @@ export default function AffikeOfferPage() {
       <RedirectNoticeModal
         isOpen={redirectNoticeOpen}
         onClose={() => setRedirectNoticeOpen(false)}
+        showFullyCompletedNotice={(offer?.milestones?.length ?? 0) > 1}
       />
     </PageContainer>
   );

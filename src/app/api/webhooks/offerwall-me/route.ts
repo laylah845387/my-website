@@ -66,6 +66,17 @@ async function readParams(request: NextRequest): Promise<URLSearchParams> {
 export async function POST(request: NextRequest) {
   const params = await readParams(request);
 
+  console.log(
+    "[Offerwall.me] Postback request received:",
+    JSON.stringify({
+      method: request.method,
+      params: Object.fromEntries(
+        [...params.entries()].filter(([key]) => key.toLowerCase() !== "signature")
+      ),
+      hasSignature: params.has("signature"),
+    })
+  );
+
   const secret = process.env.OFFERWALL_ME_SECRET_KEY;
   const userId = params.get("subId");
   const transactionId = params.get("transId");
@@ -73,11 +84,21 @@ export async function POST(request: NextRequest) {
   const status = params.get("status") || "1";
   const signature = params.get("signature");
 
-  if (!secret) return new NextResponse("ERROR: Postback not configured", { status: 200 });
+  if (!secret) {
+    console.warn("[Offerwall.me] Postback rejected: secret is not configured");
+    return new NextResponse("ERROR: Postback not configured", { status: 200 });
+  }
   if (!userId || !transactionId || !rewardRaw || !signature) {
+    console.warn("[Offerwall.me] Postback rejected: missing required parameter", {
+      hasUserId: Boolean(userId),
+      hasTransactionId: Boolean(transactionId),
+      hasReward: Boolean(rewardRaw),
+      hasSignature: Boolean(signature),
+    });
     return new NextResponse("ERROR: Missing parameters", { status: 200 });
   }
   if (md5(`${userId}${transactionId}${rewardRaw}${secret}`) !== signature) {
+    console.warn("[Offerwall.me] Postback rejected: signature mismatch");
     return new NextResponse("ERROR: Signature doesn't match", { status: 200 });
   }
 
@@ -86,17 +107,13 @@ export async function POST(request: NextRequest) {
     return new NextResponse("ERROR: Invalid reward", { status: 200 });
   }
 
-  // Log EVERY param the postback actually sends, not just the ones we
-  // already know about — we need to see the real field name for "which
-  // offer" and "which specific step/milestone" this completion belongs
-  // to before per-checkpoint tracking can be built correctly. Guessing a
-  // field name here would silently cross off the wrong checkpoint (or
-  // none at all) if wrong, so this needs one real completion's data
-  // first. Once you've completed a real milestone, check Render's logs
-  // for this line and share it.
+  // Log the validated callback fields so identifier mismatches are visible
+  // in Render without logging the signature itself.
   console.log(
-    "[Offerwall.me] Postback received — ALL params:",
-    Object.fromEntries(params.entries())
+    "[Offerwall.me] Postback received — params:",
+    Object.fromEntries(
+      [...params.entries()].filter(([key]) => key.toLowerCase() !== "signature")
+    )
   );
 
   const points = Math.round(reward);
