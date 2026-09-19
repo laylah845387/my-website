@@ -18,12 +18,18 @@ export async function GET(request: NextRequest) {
   const userIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "0.0.0.0";
   const userId = user?.id ?? "guest";
 
-  const [bitcotasksOffers, cpxOffers, affikeOffers, offerwallMeOffers] = await Promise.all([
+  const providerRequests = [
     new BitcotasksProvider().getOffers(userId, userIp),
     new CpxResearchProvider().getOffers(userId, userIp),
     new AffikeProvider().getOffers(userId, userIp),
     new OfferwallMeProvider().getOffers(userId, userIp),
-  ]);
+  ];
+  const [bitcotasksOffers, cpxOffers, affikeOffers, offerwallMeOffers] = await Promise.all(
+    providerRequests.map((request) => request.catch((error) => {
+      console.error("[Offers] Provider failed:", error);
+      return [];
+    }))
+  );
 
   // Temporary testing order: keep Offerwall.me cards at the top until their
   // integration is verified, then return to the normal mixed ordering.
@@ -33,10 +39,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ offers: allOffers });
   }
 
-  const [completedIds, dismissedIds] = await Promise.all([
-    getCompletedOffers(user.id),
-    getDismissedOffers(user.id),
-  ]);
+  let completedIds: string[] = [];
+  let dismissedIds: string[] = [];
+  try {
+    [completedIds, dismissedIds] = await Promise.all([
+      getCompletedOffers(user.id),
+      getDismissedOffers(user.id),
+    ]);
+  } catch (error) {
+    console.error("[Offers] Could not load user offer state:", error);
+  }
   const unavailableSet = new Set([...completedIds, ...dismissedIds]);
   const visibleOffers = allOffers.filter((offer) => !unavailableSet.has(offer.id));
 

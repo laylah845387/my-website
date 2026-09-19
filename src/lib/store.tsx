@@ -148,10 +148,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     async function init() {
       try {
-        const [sessionRes, dataRes] = await Promise.all([
-          fetch("/api/auth/session").then((r) => r.json()),
-          fetch("/api/user/me").then((r) => r.json()),
-        ]);
+        const sessionRes = await fetch("/api/auth/session").then((response) => response.json());
+        const dataRes = await fetch("/api/user/me").then((response) => response.json());
 
         if (cancelled) return;
 
@@ -159,7 +157,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           type: "INIT",
           payload: {
             session: sessionRes.user ?? null,
-            points: dataRes.points ?? 0,
+            points: dataRes.dataUnavailable ? 0 : (dataRes.points ?? 0),
             completedOffers: dataRes.completedOffers ?? [],
             orders: dataRes.orders ?? [],
           },
@@ -237,6 +235,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!response.ok) return;
 
     const data = await response.json();
+    if (data.dataUnavailable) return;
     dispatch({ type: "SET_POINTS", payload: data.points ?? 0 });
   }, []);
 
