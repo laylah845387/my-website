@@ -1,7 +1,10 @@
 import crypto from "crypto";
 import { Offer, OfferMilestone } from "@/types";
 import { getCountryForIp } from "@/lib/geo";
-import { getOfferwallMeMilestoneRewards } from "@/lib/user-data";
+import {
+  getOfferwallMeMilestoneRewards,
+  getOfferwallMeMilestoneRewardsByName,
+} from "@/lib/user-data";
 import { OfferwallProvider } from "./types";
 
 type RawOffer = Record<string, unknown>;
@@ -143,7 +146,10 @@ async function applyMilestoneProgress(userId: string, offers: Offer[]): Promise<
       continue;
     }
 
-    const remainingPool = await getOfferwallMeMilestoneRewards(userId, offer.id);
+    const remainingPool = [
+      ...(await getOfferwallMeMilestoneRewards(userId, offer.id)),
+      ...(await getOfferwallMeMilestoneRewardsByName(userId, offer.title || "")),
+    ];
 
     const milestonesWithProgress = offer.milestones.map((milestone) => {
       const poolIndex = remainingPool.indexOf(milestone.points);

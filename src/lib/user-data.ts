@@ -151,6 +151,7 @@ export interface OfferwallMeTransactionRecord {
   points: number;
   status: string;
   offerId?: string | null;
+  offerName?: string | null;
   credited?: boolean;
 }
 
@@ -163,6 +164,8 @@ export async function markOfferwallMeTransaction(
   const previous = await redis.hget<OfferwallMeTransactionRecord>(key, transactionId);
   const nextRecord = {
     ...record,
+    offerId: record.offerId ?? previous?.offerId ?? null,
+    offerName: record.offerName ?? previous?.offerName ?? null,
     credited: record.credited ?? previous?.credited ?? false,
   };
   await redis.hset(key, { [transactionId]: nextRecord });
@@ -208,6 +211,32 @@ export async function removeOfferwallMeMilestone(
   );
 }
 
+export async function recordOfferwallMeMilestoneByName(
+  discordId: string,
+  offerName: string,
+  reward: number,
+  transactionId: string
+): Promise<void> {
+  const redis = getRedis();
+  await redis.sadd(
+    `user:${discordId}:offerwall-me-milestone-names`,
+    JSON.stringify({ offerName, reward, transactionId })
+  );
+}
+
+export async function removeOfferwallMeMilestoneByName(
+  discordId: string,
+  offerName: string,
+  reward: number,
+  transactionId: string
+): Promise<void> {
+  const redis = getRedis();
+  await redis.srem(
+    `user:${discordId}:offerwall-me-milestone-names`,
+    JSON.stringify({ offerName, reward, transactionId })
+  );
+}
+
 export async function getOfferwallMeMilestoneRewards(
   discordId: string,
   offerId: string
@@ -223,6 +252,27 @@ export async function getOfferwallMeMilestoneRewards(
       }
     })
     .filter((n) => Number.isFinite(n));
+}
+
+export async function getOfferwallMeMilestoneRewardsByName(
+  discordId: string,
+  offerName: string
+): Promise<number[]> {
+  const redis = getRedis();
+  const raw = await redis.smembers(`user:${discordId}:offerwall-me-milestone-names`);
+  const normalizedName = offerName.trim().toLowerCase();
+  return (raw ?? [])
+    .map((entry) => {
+      try {
+        const parsed = JSON.parse(entry) as { offerName?: string; reward?: number };
+        return parsed.offerName?.trim().toLowerCase() === normalizedName
+          ? Number(parsed.reward)
+          : NaN;
+      } catch {
+        return NaN;
+      }
+    })
+    .filter((value) => Number.isFinite(value));
 }
 
 /**

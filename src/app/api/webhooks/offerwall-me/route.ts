@@ -4,7 +4,9 @@ import {
   adjustPoints,
   markOfferwallMeTransaction,
   recordOfferwallMeMilestone,
+  recordOfferwallMeMilestoneByName,
   removeOfferwallMeMilestone,
+  removeOfferwallMeMilestoneByName,
 } from "@/lib/user-data";
 
 function md5(value: string): string {
@@ -120,12 +122,14 @@ export async function POST(request: NextRequest) {
 
   const offerIds = getOfferIds(params);
   const offerId = offerIds[0] ?? null;
+  const offerName = params.get("offer_name") || params.get("offerName") || null;
 
   const previous = await markOfferwallMeTransaction(transactionId, {
     userId,
     points,
     status,
     offerId,
+    offerName,
   });
 
   if (previous) {
@@ -134,6 +138,9 @@ export async function POST(request: NextRequest) {
       await markOfferwallMeTransaction(transactionId, { ...previous, status, credited: false });
       if (previous.offerId) {
         await removeOfferwallMeMilestone(previous.userId, previous.offerId, previous.points, transactionId);
+      }
+      if (previous.offerName) {
+        await removeOfferwallMeMilestoneByName(previous.userId, previous.offerName, previous.points, transactionId);
       }
       await Promise.all(
         offerIds
@@ -150,10 +157,15 @@ export async function POST(request: NextRequest) {
         credited: true,
       });
       await Promise.all(offerIds.map((id) => recordOfferwallMeMilestone(userId, id, points, transactionId)));
+      if (offerName && offerIds.length === 0) {
+        await recordOfferwallMeMilestoneByName(userId, offerName, points, transactionId);
+      }
     } else if (status === "1" && previous.credited && offerIds.length > 0) {
       // A retry may contain the offer ID even when the original credit did
       // not. Keep the point credit idempotent, but backfill milestone state.
       await Promise.all(offerIds.map((id) => recordOfferwallMeMilestone(userId, id, points, transactionId)));
+    } else if (status === "1" && previous.credited && offerName && offerIds.length === 0) {
+      await recordOfferwallMeMilestoneByName(userId, offerName, points, transactionId);
     }
     return new NextResponse("ok", { status: 200 });
   }
@@ -168,6 +180,9 @@ export async function POST(request: NextRequest) {
       credited: true,
     });
     await Promise.all(offerIds.map((id) => recordOfferwallMeMilestone(userId, id, points, transactionId)));
+    if (offerName && offerIds.length === 0) {
+      await recordOfferwallMeMilestoneByName(userId, offerName, points, transactionId);
+    }
   }
 
   return new NextResponse("ok", { status: 200 });
